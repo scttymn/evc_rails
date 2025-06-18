@@ -57,7 +57,7 @@ end
 
 And its associated template app/components/my_component_component.html.erb (if you're using separate templates):
 
-```html
+```erb
 <!-- app/components/my_component_component.html.erb -->
 <div class="my-component">
   <h2><%= @title %></h2>
@@ -68,7 +68,7 @@ And its associated template app/components/my_component_component.html.erb (if y
 2. Create an .evc Template
    Now, create a template file with the .evc extension. For instance, app/views/pages/home.html.evc:
 
-```html
+```erb
 <!-- app/views/pages/home.html.evc -->
 <h1>Welcome to My App</h1>
 
@@ -78,7 +78,7 @@ And its associated template app/components/my_component_component.html.erb (if y
 </MyComponent>
 
 <%# A more concise way to render your DoughnutChartComponent %>
-<DoughnutChart rings="{@progress_data}" />
+<DoughnutChart rings={@progress_data} />
 
 <%# You can still use standard ERB within .evc files %>
 <p><%= link_to "Go somewhere", some_path %></p>

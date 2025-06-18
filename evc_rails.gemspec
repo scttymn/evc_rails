@@ -34,4 +34,5 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency "actionview"
   spec.add_runtime_dependency "activesupport"
   spec.add_runtime_dependency "rails", ">= 6.0"
+  spec.add_runtime_dependency "view_component", ">= 2.0"
 end

@@ -96,7 +96,11 @@ config.eager_load_paths << Rails.root.join("app/components")
 
 When Rails processes an .evc template, EvcRails intercepts it and performs the following transformations:
 
-<MyComponent title="Hello World">... </MyComponent> becomes:
+```html
+<MyComponent title="Hello World">... </MyComponent>
+```
+
+becomes:
 
 ```ruby
 <%= render MyComponentComponent.new(title: "Hello World") do %>
@@ -104,19 +108,27 @@ When Rails processes an .evc template, EvcRails intercepts it and performs the f
 <% end %>
 ```
 
-<Button text="Click Me" /> becomes:
+```html
+<button text="Click Me" />
+```
+
+becomes:
 
 ```ruby
 <%= render ButtonComponent.new(text: "Click Me") %>
 ```
 
-<DoughnutChart rings={@progress_data} /> becomes:
+```html
+<DoughnutChart rings="{@progress_data}" />
+```
+
+becomes:
 
 ```ruby
 <%= render DoughnutChartComponent.new(rings: @progress_data) %>
 ```
 
-attr={@variable} becomes attr: @variable in the new() call.
+`attr={@variable}` becomes `attr: @variable` in the new() call.
 
 The transformed content is then passed to the standard ERB handler for final rendering.
 

@@ -96,9 +96,7 @@ config.eager_load_paths << Rails.root.join("app/components")
 
 When Rails processes an .evc template, EvcRails intercepts it and performs the following transformations:
 
-```html
-<MyComponent title="Hello World">... </MyComponent>
-```
+`<MyComponent title="Hello World">... </MyComponent>`
 
 becomes:
 
@@ -108,9 +106,7 @@ becomes:
 <% end %>
 ```
 
-```html
-<button text="Click Me" />
-```
+`<button text="Click Me" />`
 
 becomes:
 
@@ -118,9 +114,7 @@ becomes:
 <%= render ButtonComponent.new(text: "Click Me") %>
 ```
 
-```html
-<DoughnutChart rings="{@progress_data}" />
-```
+`<DoughnutChart rings={@progress_data} />`
 
 becomes:
 

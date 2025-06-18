@@ -25,14 +25,17 @@ module EvcRails
 
       # Cache for compiled templates to improve performance
       def call(template, source = nil)
-        @cache ||= {}
+        # Only use cache in non-development environments
+        if !Rails.env.development? && @cache && @cache[identifier] && source == @cache[identifier][:source]
+          return @cache[identifier][:result]
+        end
+      
+        @cache ||= {} unless Rails.env.development? # Initialize cache only in production
         identifier = template.identifier
-        return @cache[identifier] if @cache[identifier] && source == @cache[identifier][:source]
-
         processed_source = process_template(source, template)
-        erb_handler = ActionView::Template::Handlers.extensions[:erb]&.new || ActionView::Template::Handlers::ERB.new
+        erb_handler = ActionView::Template.registered_template_handler(:erb)
         result = erb_handler.call(template, processed_source)
-        @cache[identifier] = { source: source, result: result }
+        @cache[identifier] = { source: source, result: result } unless Rails.env.development?
         result
       end
 

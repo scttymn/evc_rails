@@ -1,201 +1,316 @@
-# EvcRails
+# EVC Rails
 
-EvcRails is a Rails gem that introduces a custom .evc template handler, allowing you to define your Rails View Components using a concise, HTML-like PascalCase tag syntax, reminiscent of React or other modern component-based UI frameworks. This gem seamlessly integrates your custom tags with Rails View Components, enabling a more declarative and readable approach to building UIs in Rails.
+Embedded ViewComponents (EVC) is a Rails template handler that brings JSX-like syntax to ViewComponent, allowing you to write PascalCase component tags directly in your `.evc` templates.
+
+## Drop-in ERB Replacement
+
+EVC templates are a **drop-in replacement** for `.erb` files. All ERB features are fully supported:
+
+- `<%= %>` and `<% %>` tags
+- Ruby expressions and control flow
+- Helper methods (`link_to`, `form_with`, etc.)
+- Partials (`<%= render 'partial' %>`)
+- Layouts and content_for blocks
+
+The template handler processes EVC syntax first, then passes the result to the standard ERB handler for final rendering.
+
+## Works with Existing ViewComponents
+
+EVC works seamlessly with **any ViewComponents you already have** in `app/components`. Simply install the gem and start using easier syntax:
+
+```ruby
+# Your existing ViewComponent (no changes needed)
+class ButtonComponent < ViewComponent::Base
+  def initialize(variant: "default", size: "md")
+    @variant = variant
+    @size = size
+  end
+end
+```
+
+```html
+<!-- Now you can use it with EVC syntax -->
+<button variant="primary" size="lg">Click me</button>
+```
+
+No component modifications required - just install and enjoy easier syntax!
 
 ## Features
 
-PascalCase Component Tags: Define and use your View Components with <MyComponent> or self-closing <MyComponent /> syntax directly in your .evc templates.
-
-Namespaced Components: Support for namespaced components like <Ui::Button /> or <Forms::Input /> for better organization.
-
-Attribute Handling: Pass attributes to your components using standard HTML-like key="value", key='value', or Ruby expressions key={@variable}.
-
-Content Blocks: Components can accept content blocks (<MyComponent>content</MyComponent>) which are passed to the View Component via a block.
-
-Automatic Component Resolution: Automatically appends "Component" to your tag name if it's not already present (e.g., <Button> resolves to ButtonComponent, <Ui::Button> resolves to Ui::ButtonComponent).
-
-Performance Optimized: Includes in-memory caching of compiled templates and memoization of component class lookups for efficient rendering in production.
+- **JSX-like syntax** for ViewComponent tags
+- **Self-closing components**: `<Button />`
+- **Block components**: `<Container>content</Container>`
+- **Attributes**: String, Ruby expressions, and multiple attributes
+- **Namespaced components**: `<UI::Button />`, `<Forms::Fields::TextField />`
+- **Slot support**: `<Card::Header>...</Card::Header>` with `renders_one` and `renders_many`
+- **Deep nesting**: Complex component hierarchies
+- **Production-ready caching** with Rails.cache integration
+- **Better error messages** with line numbers and column positions
 
 ## Installation
 
 Add this line to your application's Gemfile:
 
-```
+```ruby
 gem 'evc_rails'
 ```
 
 And then execute:
 
-```
-bundle install
+```bash
+$ bundle install
 ```
 
-Or install it yourself as:
-
-```
-gem install evc_rails
-```
+The template handler will be automatically registered for `.evc` files.
 
 ## Usage
 
-1. Create a View Component
-   First, ensure you have a Rails View Component. For example, create app/components/my_component_component.rb:
+### Basic Components
 
-```ruby
-# app/components/my_component_component.rb
-class MyComponentComponent < ViewComponent::Base
-  def initialize(title:)
-    @title = title
-  end
+Create `.evc` files in your `app/views` directory:
 
-  def call
-    tag.div(class: "my-component") do
-      concat tag.h2(@title)
-      concat content # This renders the block content
-    end
-  end
-end
+```html
+<!-- app/views/pages/home.evc -->
+<h1>Welcome to our app</h1>
+
+<button size="lg" variant="primary">Get Started</button>
+
+<Card>
+  <h2>Featured Content</h2>
+  <p>This is some amazing content.</p>
+</Card>
 ```
 
-And its associated template app/components/my_component_component.html.erb (if you're using separate templates):
+This becomes:
 
 ```erb
-<!-- app/components/my_component_component.html.erb -->
-<div class="my-component">
-  <h2><%= @title %></h2>
-  <%= content %>
-</div>
-```
+<h1>Welcome to our app</h1>
 
-2. Create an .evc Template
-   Now, create a template file with the .evc extension. For instance, app/views/pages/home.html.evc:
+<%= render ButtonComponent.new(size: "lg", variant: "primary") do %>
+  Get Started
+<% end %>
 
-```erb
-<!-- app/views/pages/home.html.evc -->
-<h1>Welcome to My App</h1>
-
-<MyComponent title="Hello World">
-  <p>This is some content passed to the component.</p>
-  <button text="Click Me" />
-</MyComponent>
-
-<%# Namespaced components for better organization %>
-<Ui::Button text="Click Me" />
-<Forms::Input name="email" placeholder="Enter your email" />
-<Layout::Container>
-  <p>Content inside a layout container</p>
-</Layout::Container>
-
-<%# A more concise way to render your DoughnutChartComponent %>
-<DoughnutChart rings={@progress_data} />
-
-<%# You can still use standard ERB within .evc files %>
-<p><%= link_to "Go somewhere", some_path %></p>
-```
-
-3. Ensure Components are Autoloaded
-   Make sure your app/components directory is eager-loaded in production. In config/application.rb or an initializer:
-
-```ruby
-# config/application.rb
-config.eager_load_paths << Rails.root.join("app/components")
-```
-
-## Component Organization
-
-You can organize your components into namespaces for better structure:
-
-```
-app/components/
-├── ui/
-│   ├── button_component.rb
-│   ├── card_component.rb
-│   └── input_component.rb
-├── forms/
-│   ├── input_component.rb
-│   ├── select_component.rb
-│   └── checkbox_component.rb
-├── layout/
-│   ├── container_component.rb
-│   ├── header_component.rb
-│   └── footer_component.rb
-└── my_component_component.rb
-```
-
-Then use them in your .evc templates:
-
-```erb
-<Ui::Button text="Submit" />
-<Forms::Input name="username" />
-<Layout::Container>
-  <Layout::Header title="My App" />
-  <p>Main content</p>
-  <Layout::Footer />
-</Layout::Container>
-```
-
-## How it Works
-
-When Rails processes an .evc template, EvcRails intercepts it and performs the following transformations:
-
-```erb
-<Card title="Hello World">... </Card>
-```
-
-becomes:
-
-```ruby
-<%= render CardComponent.new(title: "Hello World") do %>
-  ... (processed content) ...
+<%= render CardComponent.new do %>
+  <h2>Featured Content</h2>
+  <p>This is some amazing content.</p>
 <% end %>
 ```
 
-```erb
-<Button text="Click Me" />
+### Self-Closing Components
+
+```html
+<button />
+<Icon name="star" />
+<spacer height="20" />
 ```
 
-becomes:
-
-```ruby
-<%= render ButtonComponent.new(text: "Click Me") %>
-```
-
-```erb
-<Ui::Button text="Click Me" />
-```
-
-becomes:
-
-```ruby
-<%= render Ui::ButtonComponent.new(text: "Click Me") %>
-```
+Becomes:
 
 ```erb
-<DoughnutChart rings={@progress_data} />
+<%= render ButtonComponent.new %>
+<%= render IconComponent.new(name: "star") %>
+<%= render SpacerComponent.new(height: "20") %>
 ```
 
-becomes:
+### Attributes
+
+#### String Attributes
+
+```html
+<button size="lg" variant="primary" />
+```
+
+#### Ruby Expressions
+
+```html
+<button user="{@current_user}" count="{@items.count}" />
+```
+
+#### Multiple Attributes
+
+```html
+<Card class="shadow-lg" data-testid="featured-card" user="{@user}">
+  Content here
+</Card>
+```
+
+### Namespaced Components
+
+Organize your components in subdirectories:
+
+```html
+<UI::Button size="lg" />
+<Forms::Fields::TextField value="{@email}" />
+<Layout::Container class="max-w-4xl">
+  <UI::Card>Content</UI::Card>
+</Layout::Container>
+```
+
+This maps to:
+
+- `app/components/ui/button_component.rb`
+- `app/components/forms/fields/text_field_component.rb`
+- `app/components/layout/container_component.rb`
+
+### Slot Support
+
+#### Single Slots (`renders_one`)
 
 ```ruby
-<%= render DoughnutChartComponent.new(rings: @progress_data) %>
+# app/components/card_component.rb
+class CardComponent < ViewComponent::Base
+  renders_one :header
+  renders_one :body
+end
 ```
 
-`attr={@variable}` becomes `attr: @variable` in the new() call.
+```html
+<Card>
+  <Card::Header>
+    <h1>Welcome</h1>
+  </Card::Header>
+  <Card::Body>
+    <p>This is the body content.</p>
+  </Card::Body>
+</Card>
+```
 
-The transformed content is then passed to the standard ERB handler for final rendering.
+Becomes:
 
-## Configuration
+```erb
+<%= render CardComponent.new do |c| %>
+  <% c.header do %>
+    <h1>Welcome</h1>
+  <% end %>
+  <% c.body do %>
+    <p>This is the body content.</p>
+  <% end %>
+<% end %>
+```
 
-Currently, EvcRails requires no specific configuration. Future versions might include options for:
+#### Multiple Slots (`renders_many`)
 
-Customizing the component suffix (e.g., if you don't want "Component" appended).
+```ruby
+# app/components/list_component.rb
+class ListComponent < ViewComponent::Base
+  renders_many :items
+end
+```
 
-Defining custom component lookup paths.
+```html
+<List>
+  <List::Item>Item 1</List::Item>
+  <List::Item>Item 2</List::Item>
+  <List::Item>Item 3</List::Item>
+</List>
+```
+
+Becomes:
+
+```erb
+<%= render ListComponent.new do |c| %>
+  <% c.item do %>Item 1<% end %>
+  <% c.item do %>Item 2<% end %>
+  <% c.item do %>Item 3<% end %>
+<% end %>
+```
+
+### Complex Nesting
+
+```html
+<UI::Card>
+  <h2 class="text-2xl font-semibold">Dashboard</h2>
+
+  <UI::Grid cols="3" gap="md">
+    <UI::Card shadow="sm">
+      <p class="text-center">Widget 1</p>
+    </UI::Card>
+    <UI::Card shadow="sm">
+      <p class="text-center">Widget 2</p>
+    </UI::Card>
+    <UI::Card shadow="sm">
+      <p class="text-center">Widget 3</p>
+    </UI::Card>
+  </UI::Grid>
+</UI::Card>
+```
+
+### Mixed Content
+
+You can mix regular HTML, ERB, and component tags:
+
+```html
+<div class="container">
+  <h1><%= @page.title %></h1>
+
+  <% if @show_featured %>
+  <FeaturedCard />
+  <% end %>
+
+  <div class="grid">
+    <% @posts.each do |post| %>
+    <PostCard post="{post}" />
+    <% end %>
+  </div>
+</div>
+```
+
+## Error Handling
+
+The template handler provides detailed error messages with line numbers and column positions:
+
+```
+ArgumentError: Unmatched closing tag </Button> at line 15, column 8
+ArgumentError: Unclosed tag <Card> at line 10, column 1
+ArgumentError: No matching opening tag for </Container> at line 20, column 5
+```
+
+## Caching
+
+Templates are automatically cached in production environments using `Rails.cache`. The cache is keyed by template identifier and source content hash, ensuring cache invalidation when templates change.
+
+### Cache Management
+
+Clear the template cache:
+
+```ruby
+Rails.cache.clear
+```
+
+Or clear specific template patterns:
+
+```ruby
+Rails.cache.delete_matched("evc_rails_template:*")
+```
+
+## Development
+
+### Running Tests
+
+```bash
+bundle exec ruby test/unit/template_handler_test.rb
+```
+
+### Building the Gem
+
+```bash
+gem build evc_rails.gemspec
+```
+
+## Requirements
+
+- Rails 6.0+
+- Ruby 3.1+
+- ViewComponent 2.0+
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at [your-gem-repo-link]. This project is intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to the code of conduct.
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-The gem is available as open source under the terms of the MIT License
+The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).

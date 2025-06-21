@@ -1,217 +1,256 @@
 # lib/evc_rails/template_handler.rb
 #
-# This file contains the core logic for the .evc template handler.
-# It's part of the `EvcRails` module to keep it namespaced within the gem.
-# Handles .evc templates, converting PascalCase tags (self-closing <MyComponent attr={value} />
-# or container <MyComponent>content</MyComponent>) into Rails View Component renders.
-# Supports string literals and Ruby expressions as attribute values. The handler is
-# agnostic to specific component APIs, passing content as a block for the component
-# to interpret via yield or custom methods.
+# Simple template handler for .evc files
+# Converts PascalCase tags into Rails View Component renders
 
 module EvcRails
   module TemplateHandlers
     class Evc
-      # Regex to match opening or self-closing PascalCase component tags with attributes
-      # Updated to support namespaced components like UI::Button
-      TAG_REGEX = %r{<([A-Z][a-zA-Z_]*(::[A-Z][a-zA-Z_]*)*)([^>]*)/?>}
+      # Simple regex to match PascalCase component tags
+      TAG_REGEX = %r{<([A-Z][a-zA-Z0-9_]*(?:::[A-Z][a-zA-Z0-9_]*)*)([^>]*)/?>}
 
-      # Regex to match closing PascalCase component tags
-      # Updated to support namespaced components like UI::Button
-      CLOSE_TAG_REGEX = %r{</([A-Z][a-zA-Z_]*(::[A-Z][a-zA-Z_]*)*)>}
+      # Regex to match closing tags
+      CLOSE_TAG_REGEX = %r{</([A-Z][a-zA-Z0-9_]*(?:::[A-Z][a-zA-Z0-9_]*)*)>}
 
-      # Regex for attributes: Supports string literals (key="value", key='value')
-      # and Ruby expressions (key={@variable}).
-      # Group 1: Attribute key, Group 2: Double-quoted value, Group 3: Single-quoted value,
-      # Group 4: Ruby expression.
+      # Regex for attributes
       ATTRIBUTE_REGEX = /(\w+)=(?:"([^"]*)"|'([^']*)'|\{([^}]*)\})/
 
-      # Cache for compiled templates to improve performance.
-      # @cache will store { identifier: { source: original_source, result: compiled_result } }
-      # Note: In a production environment, a more robust cache store (e.g., Rails.cache)
-      # might be preferred for persistence and memory management, especially for large applications.
-      # This simple in-memory cache is effective for a single process.
-      @cache = {}
+      # Cache for compiled templates
+      @template_cache = {}
+      @cache_mutex = Mutex.new
 
-      def self.clear_cache # Class method to allow clearing cache manually, if needed
-        @cache = {}
+      require "active_support/cache"
+
+      def self.clear_cache
+        @cache_mutex.synchronize do
+          @template_cache.clear
+        end
+      end
+
+      def self.cache_stats
+        @cache_mutex.synchronize do
+          {
+            size: @template_cache.size,
+            keys: @template_cache.keys
+          }
+        end
+      end
+
+      def cache_store
+        if defined?(Rails) && Rails.respond_to?(:cache) && Rails.cache
+          Rails.cache
+        else
+          @fallback_cache ||= ActiveSupport::Cache::MemoryStore.new
+        end
       end
 
       def call(template, source = nil)
-        identifier = template.identifier
+        source ||= template.source
 
-        # Only use cache in non-development environments
-        # Check if cache exists for this template and if the source hasn't changed.
-        # This prevents recompilation of unchanged templates.
-        if !Rails.env.development? && self.class.instance_variable_get(:@cache)[identifier] &&
-           source == self.class.instance_variable_get(:@cache)[identifier][:source]
-          return self.class.instance_variable_get(:@cache)[identifier][:result]
+        # Check cache first (only in non-development environments)
+        unless Rails.env.development?
+          cache_key = "evc_rails_template:#{template.identifier}:#{Digest::MD5.hexdigest(source)}"
+          cached_result = cache_store.read(cache_key)
+          return cached_result if cached_result
         end
 
-        # Process the template source into an ERB-compatible string
+        # Process the template and convert to ERB
         processed_source = process_template(source, template)
 
-        # Get the standard ERB handler and pass the processed source to it
+        # Use the standard ERB handler to compile the processed source
         erb_handler = ActionView::Template.registered_template_handler(:erb)
         result = erb_handler.call(template, processed_source)
 
-        # Cache the result for future requests, but only in non-development environments.
-        # In development, templates change frequently, so caching would hinder development flow.
+        # Cache the result (only in non-development environments)
         unless Rails.env.development?
-          self.class.instance_variable_set(:@cache, self.class.instance_variable_get(:@cache).merge({
-                                                                                                      identifier => { source: source, result: result }
-                                                                                                    }))
+          cache_key = "evc_rails_template:#{template.identifier}:#{Digest::MD5.hexdigest(source)}"
+          cache_store.write(cache_key, result)
         end
-        result
+
+        normalize_whitespace(result)
       end
 
       private
 
-      # A memoization cache for resolved component classes within a single template processing.
-      # This prevents repeated `constantize` calls for the same component name within `process_template`.
-      attr_reader :component_class_memo
-
-      def initialize
-        @component_class_memo = {}
-      end
-
-      # Helper method to determine the full component class name
-      def resolve_component_class_name(tag_name)
-        if tag_name.include?("::")
-          # For namespaced components, just append Component
-          "#{tag_name}Component"
-        elsif tag_name.end_with?("Component")
-          tag_name
-        else
-          "#{tag_name}Component"
-        end
-      end
-
-      # Processes the .evc template source, converting custom tags into Rails View Component render calls.
-      # This method uses a single-pass parser with a revised strategy for handling nesting.
       def process_template(source, template)
-        parts = []
-        pos = 0
-        # Stack tracks [tag_name, component_class_name, render_params_str, content_start_pos_in_source]
+        # Pre-compile regexes for better performance
+        tag_regex = TAG_REGEX
+        close_tag_regex = CLOSE_TAG_REGEX
+        attribute_regex = ATTRIBUTE_REGEX
+
+        # Use String buffer for better performance
+        result = String.new
         stack = []
-      
-        # Initialize memoization cache for this processing run
-        @component_class_memo = {}
-      
-        # Debugging: Log the source template
-        Rails.logger.debug "Processing template: #{template.identifier}\nSource:\n#{source}"
-      
-        while pos < source.length
-          # Try to match an opening or self-closing tag
-          if (match = TAG_REGEX.match(source, pos))
-            # Append text before the tag to parts
-            parts << source[pos...match.begin(0)] if pos < match.begin(0)
-            pos = match.end(0) # Move past the matched tag
-      
-            is_self_closing = match[0].end_with?("/>")
+        pos = 0
+        source_length = source.length
+
+        # Track line numbers for better error messages
+        def line_number_at_position(source, pos)
+          source[0...pos].count("\n") + 1
+        end
+
+        def column_number_at_position(source, pos)
+          last_newline = source[0...pos].rindex("\n")
+          last_newline ? pos - last_newline : pos + 1
+        end
+
+        while pos < source_length
+          # Find next opening or closing tag
+          next_open = tag_regex.match(source, pos)
+          next_close = close_tag_regex.match(source, pos)
+
+          if next_open && (!next_close || next_open.begin(0) < next_close.begin(0))
+            # Found opening tag
+            match = next_open
             tag_name = match[1]
-            attributes_str = match[3].strip
-      
-            # Debugging: Log the matched tag
-            Rails.logger.debug "Matched tag: #{match[0]} at position #{match.begin(0)}"
-      
-            # Resolve component class name
-            component_class_name = resolve_component_class_name(tag_name)
-      
-            # Validate component class
-            component_class = @component_class_memo[component_class_name] ||= begin
-              component_class_name.constantize
-            rescue NameError
-              raise ArgumentError, "Component #{component_class_name} not found in template #{template.identifier}"
-            end
-      
-            # Parse attributes
-            params = []
-            attributes_str.scan(ATTRIBUTE_REGEX) do |key, quoted_value, single_quoted_value, ruby_expression|
-              unless key =~ /\A[a-z_][a-z0-9_]*\z/i
-                raise ArgumentError, "Invalid attribute key '#{key}' in template #{template.identifier}"
-              end
-      
-              formatted_key = "#{key}:"
-              if ruby_expression
-                params << "#{formatted_key} #{ruby_expression}"
-              elsif quoted_value
-                params << "#{formatted_key} \"#{quoted_value.gsub('"', '\"')}\""
-              elsif single_quoted_value
-                params << "#{formatted_key} \"#{single_quoted_value.gsub("'", "\\'")}\""
+            attributes_str = match[2].to_s.strip
+            is_self_closing = match[0].end_with?("/>")
+
+            # Add content before the tag
+            result << source[pos...match.begin(0)] if pos < match.begin(0)
+
+            # Determine if this is a slot (e.g., Card::Header inside Card)
+            parent = stack.last
+            is_slot = false
+            slot_name = nil
+            slot_parent = nil
+            if parent
+              parent_tag = parent[0]
+              if tag_name.start_with?("#{parent_tag}::")
+                is_slot = true
+                slot_name = tag_name.split("::").last.downcase
+                slot_parent = parent_tag
+                # Mark parent as having a slot
+                parent[6] = true
               end
             end
-      
-            render_params_str = params.join(", ")
-      
+
             if is_self_closing
-              # Self-closing tag: render immediately
-              parts << "<%= render #{component_class_name}.new(#{render_params_str}) %>"
-              Rails.logger.debug "Rendered self-closing tag: #{tag_name}"
+              if is_slot
+                params = parse_attributes(attributes_str, attribute_regex)
+                param_str = params.join(", ")
+                result << if param_str.empty?
+                            "<% c.#{slot_name} do %><% end %>"
+                          else
+                            "<% c.#{slot_name}(#{param_str}) do %><% end %>"
+                          end
+              else
+                component_class = "#{tag_name}Component"
+                params = parse_attributes(attributes_str, attribute_regex)
+                param_str = params.join(", ")
+                result << if param_str.empty?
+                            "<%= render #{component_class}.new %>"
+                          else
+                            "<%= render #{component_class}.new(#{param_str}) %>"
+                          end
+              end
+            elsif is_slot
+              params = parse_attributes(attributes_str, attribute_regex)
+              param_str = params.join(", ")
+              stack << [tag_name, nil, param_str, result.length, :slot, slot_name, false, match.begin(0)]
+              result << if param_str.empty?
+                          "<% c.#{slot_name} do %>"
+                        else
+                          "<% c.#{slot_name}(#{param_str}) do %>"
+                        end
             else
-              # Opening tag: push to stack with source position
-              stack << [tag_name, component_class_name, render_params_str, pos]
-              Rails.logger.debug "Pushed opening tag: #{tag_name}, Stack: #{stack.inspect}"
+              component_class = "#{tag_name}Component"
+              params = parse_attributes(attributes_str, attribute_regex)
+              param_str = params.join(", ")
+              # If this is the outermost component, add |c| for slot support only if a slot is used
+              if stack.empty?
+                stack << [tag_name, component_class, param_str, result.length, :component, nil, false, match.begin(0)] # [tag_name, class, params, pos, type, slot_name, slot_used, open_pos]
+                # We'll patch in |c| at close if needed
+                result << if param_str.empty?
+                            "<%= render #{component_class}.new do %>"
+                          else
+                            "<%= render #{component_class}.new(#{param_str}) do %>"
+                          end
+              else
+                stack << [tag_name, component_class, param_str, result.length, :component, nil, false, match.begin(0)]
+                result << if param_str.empty?
+                            "<%= render #{component_class}.new do %>"
+                          else
+                            "<%= render #{component_class}.new(#{param_str}) do %>"
+                          end
+              end
             end
-      
-          # Try to match a closing tag
-          elsif (match = CLOSE_TAG_REGEX.match(source, pos))
-            # Append text before the closing tag
-            parts << source[pos...match.begin(0)] if pos < match.begin(0)
-            pos = match.end(0) # Move past the matched tag
-      
+
+            pos = match.end(0)
+          elsif next_close
+            # Found closing tag
+            match = next_close
             closing_tag_name = match[1]
-            line_number = source[0...match.begin(0)].count("\n") + 1
-      
-            # Debugging: Log the closing tag
-            Rails.logger.debug "Matched closing tag: </#{closing_tag_name}> at position #{match.begin(0)}, line #{line_number}"
-      
-            # Check for unmatched closing tags
+
+            # Add content before the closing tag
+            result << source[pos...match.begin(0)] if pos < match.begin(0)
+
+            # Find matching opening tag
             if stack.empty?
-              raise ArgumentError, "Unmatched closing tag </#{closing_tag_name}> at line #{line_number} in template #{template.identifier}"
+              line = line_number_at_position(source, match.begin(0))
+              col = column_number_at_position(source, match.begin(0))
+              raise ArgumentError, "Unmatched closing tag </#{closing_tag_name}> at line #{line}, column #{col}"
             end
-      
-            # Find the matching opening tag in the stack
-            matching_index = stack.rindex { |(tag_name, _, _, _)| tag_name == closing_tag_name }
-            unless matching_index
-              raise ArgumentError, "No matching opening tag for </#{closing_tag_name}> at line #{line_number} in template #{template.identifier}"
+
+            # Find the matching opening tag (from the end)
+            matching_index = stack.rindex { |(tag_name, _, _, _, _, _, _, _)| tag_name == closing_tag_name }
+            if matching_index.nil?
+              line = line_number_at_position(source, match.begin(0))
+              col = column_number_at_position(source, match.begin(0))
+              raise ArgumentError, "No matching opening tag for </#{closing_tag_name}> at line #{line}, column #{col}"
             end
-      
-            # Pop all entries up to and including the matching tag
-            popped = stack.slice!(matching_index..-1)
-            original_tag_name, component_class_name, render_params_str, content_start_pos = popped.last
-      
-            # Debugging: Log stack state
-            Rails.logger.debug "Popped tag: #{original_tag_name}, Stack: #{stack.inspect}"
-      
-            # Collect content from content_start_pos to current position
-            block_content = source[content_start_pos...match.begin(0)]
-      
-            # Process nested content recursively to handle any components within
-            processed_block_content = process_template(block_content, template)
-      
-            # Construct the render call with block
-            full_render_call = "<%= render #{component_class_name}.new(#{render_params_str}) do %>#{processed_block_content}<% end %>"
-            parts << full_render_call
-      
-            Rails.logger.debug "Rendered component: #{original_tag_name} with content:\n#{processed_block_content}"
-      
+
+            # Pop the matching opening tag
+            tag_name, component_class, param_str, start_pos, type, slot_name, slot_used, open_pos = stack.delete_at(matching_index)
+
+            # Patch in |c| for top-level component if a slot was used
+            if type == :component && stack.empty? && slot_used
+              # Find the opening block and insert |c|
+              open_block_regex = /(<%= render #{component_class}\.new(?:\(.*?\))? do)( %>)/
+              result.sub!(open_block_regex) { "#{::Regexp.last_match(1)} |c|#{::Regexp.last_match(2)}" }
+            end
+
+            # Add closing block
+            result << (type == :slot ? "<% end %>" : "<% end %>")
+
+            pos = match.end(0)
           else
-            # No tags matched; append remaining source and break
-            parts << source[pos..-1] if pos < source.length
+            # No more tags, add remaining content
+            result << source[pos..-1] if pos < source_length
             break
           end
         end
-      
+
         # Check for unclosed tags
         unless stack.empty?
-          line_number = source[0...pos].count("\n") + 1
-          raise ArgumentError, "Unclosed tag <#{stack.last[0]}> at line #{line_number} in template #{template.identifier}"
+          unclosed_tag = stack.last
+          open_pos = unclosed_tag[7]
+          line = line_number_at_position(source, open_pos)
+          col = column_number_at_position(source, open_pos)
+          raise ArgumentError, "Unclosed tag <#{unclosed_tag[0]}> at line #{line}, column #{col}"
         end
-      
-        # Debugging: Log final output
-        Rails.logger.debug "Final processed template:\n#{parts.join('')}"
-      
-        parts.join("")
+
+        result
+      end
+
+      def normalize_whitespace(erb_string)
+        # For now, return the string as-is to avoid breaking existing functionality
+        # We can add proper whitespace normalization later if needed
+        erb_string
+      end
+
+      def parse_attributes(attributes_str, attribute_regex = ATTRIBUTE_REGEX)
+        params = []
+        attributes_str.scan(attribute_regex) do |key, quoted_value, single_quoted_value, ruby_expression|
+          if ruby_expression
+            params << "#{key}: #{ruby_expression}"
+          elsif quoted_value
+            params << "#{key}: \"#{quoted_value.gsub('"', '\\"')}\""
+          elsif single_quoted_value
+            params << "#{key}: \"#{single_quoted_value.gsub("'", "\\'")}\""
+          end
+        end
+        params
       end
     end
   end

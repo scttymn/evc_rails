@@ -3,7 +3,7 @@
 # This file defines a Rails::Railtie, which integrates the evc_rails gem
 # with the Rails framework during its boot process.
 
-require "evc_rails/template_handler"
+require_relative "template_handler"
 require "action_view" # Ensure ActionView is loaded for handler registration
 
 module EvcRails

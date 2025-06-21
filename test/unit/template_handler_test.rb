@@ -378,6 +378,132 @@ class TemplateHandlerTest < Minitest::Test
     assert_equal "ERB_COMPILED: #{expected}", result
   end
 
+  def test_with_slot_syntax
+    source = <<~EVC.strip
+      <Card>
+        <WithHeader>
+          <h1>Title</h1>
+        </WithHeader>
+        <WithBody>
+          <p>Body content</p>
+        </WithBody>
+      </Card>
+    EVC
+    expected = <<~ERB.strip
+      <%= render CardComponent.new do |c| %>
+        <% c.header do %>
+          <h1>Title</h1>
+        <% end %>
+        <% c.body do %>
+          <p>Body content</p>
+        <% end %>
+      <% end %>
+    ERB
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_with_slot_syntax_renders_many
+    source = <<~EVC.strip
+      <List>
+        <WithItem>Item 1</WithItem>
+        <WithItem>Item 2</WithItem>
+        <WithItem>Item 3</WithItem>
+      </List>
+    EVC
+    expected = <<~ERB.strip
+      <%= render ListComponent.new do |c| %>
+        <% c.item do %>Item 1<% end %>
+        <% c.item do %>Item 2<% end %>
+        <% c.item do %>Item 3<% end %>
+      <% end %>
+    ERB
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_with_slot_syntax_with_attributes
+    source = <<~EVC.strip
+      <List>
+        <WithItem class="first">Item 1</WithItem>
+        <WithItem class="second">Item 2</WithItem>
+        <WithItem class="third">Item 3</WithItem>
+      </List>
+    EVC
+    expected = <<~ERB.strip
+      <%= render ListComponent.new do |c| %>
+        <% c.item(class: "first") do %>Item 1<% end %>
+        <% c.item(class: "second") do %>Item 2<% end %>
+        <% c.item(class: "third") do %>Item 3<% end %>
+      <% end %>
+    ERB
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_with_slot_syntax_self_closing
+    source = "<Card><WithHeader /></Card>"
+    expected = "<%= render CardComponent.new do |c| %><% c.header do %><% end %><% end %>"
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_with_slot_syntax_with_ruby_expressions
+    source = "<Card><WithHeader user={@current_user}>Welcome</WithHeader></Card>"
+    expected = "<%= render CardComponent.new do |c| %><% c.header(user: @current_user) do %>Welcome<% end %><% end %>"
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_with_slot_syntax_backward_compatibility
+    # Test that both WithSlotName and Component::slotname work
+    source = <<~EVC.strip
+      <Card>
+        <WithHeader>New syntax</WithHeader>
+        <Card::Body>Old syntax</Card::Body>
+      </Card>
+    EVC
+    expected = <<~ERB.strip
+      <%= render CardComponent.new do |c| %>
+        <% c.header do %>New syntax<% end %>
+        <% c.body do %>Old syntax<% end %>
+      <% end %>
+    ERB
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_with_slot_syntax_complex_nesting
+    source = <<~EVC.strip
+      <Navigation>
+        <WithLink href={learning_path} text="Learning Path" />
+        <WithLink href={courses_path} text="All Courses" />
+        <WithLink text="Reports">
+          <WithSublink href={reports_users_path} text="Users" />
+          <WithSublink href={reports_activity_path} text="Activity" />
+        </WithLink>
+        <WithFooter>
+          <div>Footer content</div>
+        </WithFooter>
+      </Navigation>
+    EVC
+    expected = <<~ERB.strip
+      <%= render NavigationComponent.new do |c| %>
+        <% c.link(href: learning_path, text: "Learning Path") do %><% end %>
+        <% c.link(href: courses_path, text: "All Courses") do %><% end %>
+        <% c.link(text: "Reports") do %>
+          <% c.sublink(href: reports_users_path, text: "Users") do %><% end %>
+          <% c.sublink(href: reports_activity_path, text: "Activity") do %><% end %>
+        <% end %>
+        <% c.footer do %>
+          <div>Footer content</div>
+        <% end %>
+      <% end %>
+    ERB
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
   def test_fallback_cache_is_used_when_rails_cache_unavailable
     # Simulate Rails.cache being unavailable
     handler = EvcRails::TemplateHandlers::Evc.new

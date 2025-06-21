@@ -109,14 +109,23 @@ module EvcRails
             # Add content before the tag
             result << source[pos...match.begin(0)] if pos < match.begin(0)
 
-            # Determine if this is a slot (e.g., Card::Header inside Card)
+            # Determine if this is a slot (e.g., WithHeader, WithPost, or Card::Header inside Card)
             parent = stack.last
             is_slot = false
             slot_name = nil
             slot_parent = nil
             if parent
               parent_tag = parent[0]
-              if tag_name.start_with?("#{parent_tag}::")
+
+              # Check for WithSlotName syntax (e.g., WithHeader, WithPost)
+              if tag_name.start_with?("With")
+                is_slot = true
+                slot_name = tag_name[4..-1].downcase # Remove "With" prefix and convert to lowercase
+                slot_parent = parent_tag
+                # Mark parent as having a slot
+                parent[6] = true
+              # Check for Component::slotname syntax (backward compatibility)
+              elsif tag_name.start_with?("#{parent_tag}::")
                 is_slot = true
                 slot_name = tag_name.split("::").last.downcase
                 slot_parent = parent_tag

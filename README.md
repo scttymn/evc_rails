@@ -166,12 +166,12 @@ end
 
 ```erb
 <Card>
-  <Card::Header>
+  <WithHeader>
     <h1>Welcome</h1>
-  </Card::Header>
-  <Card::Body>
+  </WithHeader>
+  <WithBody>
     <p>This is the body content.</p>
-  </Card::Body>
+  </WithBody>
 </Card>
 ```
 
@@ -199,9 +199,9 @@ end
 
 ```erb
 <List>
-  <List::Item>Item 1</List::Item>
-  <List::Item>Item 2</List::Item>
-  <List::Item>Item 3</List::Item>
+  <WithItem>Item 1</WithItem>
+  <WithItem>Item 2</WithItem>
+  <WithItem>Item 3</WithItem>
 </List>
 ```
 
@@ -213,6 +213,33 @@ Becomes:
   <% c.item do %>Item 2<% end %>
   <% c.item do %>Item 3<% end %>
 <% end %>
+```
+
+#### Complex Slot Examples
+
+```erb
+<Navigation>
+  <WithLink href={learning_path} text="Learning Path" />
+  <WithLink href={courses_path} text="All Courses" />
+  <WithLink text="Reports">
+    <WithSublink href={reports_users_path} text="Users" />
+    <WithSublink href={reports_activity_path} text="Activity" />
+  </WithLink>
+  <WithFooter>
+    <div>Footer content</div>
+  </WithFooter>
+</Navigation>
+```
+
+#### Backward Compatibility
+
+The old `Component::slotname` syntax is still supported for backward compatibility:
+
+```erb
+<Card>
+  <Card::header>Title</Card::header>
+  <Card::body>Content</Card::body>
+</Card>
 ```
 
 ### Complex Nesting

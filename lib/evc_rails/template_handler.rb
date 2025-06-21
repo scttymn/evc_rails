@@ -12,16 +12,18 @@ module EvcRails
   module TemplateHandlers
     class Evc
       # Regex to match opening or self-closing PascalCase component tags with attributes
-      TAG_REGEX = %r{<([A-Z][a-zA-Z_]*)([^>]*)/?>}
+      # Updated to support namespaced components like UI::Button
+      TAG_REGEX = %r{<([A-Z][a-zA-Z_]*(::[A-Z][a-zA-Z_]*)*)([^>]*)/?>}
 
       # Regex to match closing PascalCase component tags
-      CLOSE_TAG_REGEX = %r{</([A-Z][a-zA-Z_]*)>}
+      # Updated to support namespaced components like UI::Button
+      CLOSE_TAG_REGEX = %r{</([A-Z][a-zA-Z_]*(::[A-Z][a-zA-Z_]*)*)>}
 
       # Regex for attributes: Supports string literals (key="value", key='value')
       # and Ruby expressions (key={@variable}).
       # Group 1: Attribute key, Group 2: Double-quoted value, Group 3: Single-quoted value,
       # Group 4: Ruby expression.
-      ATTRIBUTE_REGEX = /(\w+)=(?:\"([^"]*)\"|'([^']*)'|\{([^}]*)\})/
+      ATTRIBUTE_REGEX = /(\w+)=(?:"([^"]*)"|'([^']*)'|\{([^}]*)\})/
 
       # Cache for compiled templates to improve performance.
       # @cache will store { identifier: { source: original_source, result: compiled_result } }
@@ -56,8 +58,8 @@ module EvcRails
         # In development, templates change frequently, so caching would hinder development flow.
         unless Rails.env.development?
           self.class.instance_variable_set(:@cache, self.class.instance_variable_get(:@cache).merge({
-            identifier => { source: source, result: result }
-          }))
+                                                                                                      identifier => { source: source, result: result }
+                                                                                                    }))
         end
         result
       end
@@ -93,10 +95,14 @@ module EvcRails
 
             is_self_closing = match[0].end_with?("/>")
             tag_name = match[1]
-            attributes_str = match[2].strip
+            attributes_str = match[3].strip
 
             # Determine the full component class name
-            component_class_name = if tag_name.end_with?("Component")
+            # Handle both namespaced (UI::Button) and non-namespaced (Button) components
+            component_class_name = if tag_name.include?("::")
+                                     # For namespaced components, just append Component
+                                     "#{tag_name}Component"
+                                   elsif tag_name.end_with?("Component")
                                      tag_name
                                    else
                                      "#{tag_name}Component"
@@ -161,7 +167,8 @@ module EvcRails
 
             # Check for mismatched tags (e.g., <div></p>)
             if component_class_name != closing_tag_name
-              raise ArgumentError, "Mismatched tags: expected </#{component_class_name}>, got </#{closing_tag_name}> in template #{template.identifier}"
+              raise ArgumentError,
+                    "Mismatched tags: expected </#{component_class_name}>, got </#{closing_tag_name}> in template #{template.identifier}"
             end
 
             # Recursively process the content between the opening and closing tags.
@@ -179,9 +186,7 @@ module EvcRails
         end
 
         # After parsing, if the stack is not empty, it means there are unclosed tags.
-        unless stack.empty?
-          raise ArgumentError, "Unclosed tag <#{stack.last[0]}> in template #{template.identifier}"
-        end
+        raise ArgumentError, "Unclosed tag <#{stack.last[0]}> in template #{template.identifier}" unless stack.empty?
 
         # Join all the collected parts to form the final ERB string.
         parts.join("")

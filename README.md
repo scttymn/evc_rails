@@ -6,11 +6,13 @@ EvcRails is a Rails gem that introduces a custom .evc template handler, allowing
 
 PascalCase Component Tags: Define and use your View Components with <MyComponent> or self-closing <MyComponent /> syntax directly in your .evc templates.
 
+Namespaced Components: Support for namespaced components like <Ui::Button /> or <Forms::Input /> for better organization.
+
 Attribute Handling: Pass attributes to your components using standard HTML-like key="value", key='value', or Ruby expressions key={@variable}.
 
 Content Blocks: Components can accept content blocks (<MyComponent>content</MyComponent>) which are passed to the View Component via a block.
 
-Automatic Component Resolution: Automatically appends "Component" to your tag name if it's not already present (e.g., <Button> resolves to ButtonComponent).
+Automatic Component Resolution: Automatically appends "Component" to your tag name if it's not already present (e.g., <Button> resolves to ButtonComponent, <Ui::Button> resolves to Ui::ButtonComponent).
 
 Performance Optimized: Includes in-memory caching of compiled templates and memoization of component class lookups for efficient rendering in production.
 
@@ -77,6 +79,13 @@ And its associated template app/components/my_component_component.html.erb (if y
   <button text="Click Me" />
 </MyComponent>
 
+<%# Namespaced components for better organization %>
+<Ui::Button text="Click Me" />
+<Forms::Input name="email" placeholder="Enter your email" />
+<Layout::Container>
+  <p>Content inside a layout container</p>
+</Layout::Container>
+
 <%# A more concise way to render your DoughnutChartComponent %>
 <DoughnutChart rings={@progress_data} />
 
@@ -90,6 +99,39 @@ And its associated template app/components/my_component_component.html.erb (if y
 ```ruby
 # config/application.rb
 config.eager_load_paths << Rails.root.join("app/components")
+```
+
+## Component Organization
+
+You can organize your components into namespaces for better structure:
+
+```
+app/components/
+├── ui/
+│   ├── button_component.rb
+│   ├── card_component.rb
+│   └── input_component.rb
+├── forms/
+│   ├── input_component.rb
+│   ├── select_component.rb
+│   └── checkbox_component.rb
+├── layout/
+│   ├── container_component.rb
+│   ├── header_component.rb
+│   └── footer_component.rb
+└── my_component_component.rb
+```
+
+Then use them in your .evc templates:
+
+```erb
+<Ui::Button text="Submit" />
+<Forms::Input name="username" />
+<Layout::Container>
+  <Layout::Header title="My App" />
+  <p>Main content</p>
+  <Layout::Footer />
+</Layout::Container>
 ```
 
 ## How it Works
@@ -116,6 +158,16 @@ becomes:
 
 ```ruby
 <%= render ButtonComponent.new(text: "Click Me") %>
+```
+
+```erb
+<Ui::Button text="Click Me" />
+```
+
+becomes:
+
+```ruby
+<%= render Ui::ButtonComponent.new(text: "Click Me") %>
 ```
 
 ```erb

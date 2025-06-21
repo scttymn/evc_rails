@@ -10,20 +10,16 @@ module EvcRails
   class Railtie < Rails::Railtie
     # Register MIME type and template handler early in the initialization process
     initializer "evc_rails.register_template_handler", before: :load_config_initializers do
-      Rails.logger.info "Registering EVC template handler"
       # Register a unique MIME type for .evc templates
       Mime::Type.register "text/evc", :evc, %w[text/evc], %w[evc]
 
       # Register the template handler
       handler = EvcRails::TemplateHandlers::Evc.new
       ActionView::Template.register_template_handler(:evc, handler)
-
-      Rails.logger.info "Template handler registered: #{handler.inspect}"
     end
 
     # Finalize configuration after Rails initialization
     config.after_initialize do
-      Rails.logger.info "Configuring EVC template handlers"
       # Ensure :evc is prioritized in default handlers
       config.action_view.default_template_handlers ||= []
       config.action_view.default_template_handlers.prepend(:evc)

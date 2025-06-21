@@ -74,6 +74,18 @@ module EvcRails
         @component_class_memo = {}
       end
 
+      # Helper method to determine the full component class name
+      def resolve_component_class_name(tag_name)
+        if tag_name.include?("::")
+          # For namespaced components, just append Component
+          "#{tag_name}Component"
+        elsif tag_name.end_with?("Component")
+          tag_name
+        else
+          "#{tag_name}Component"
+        end
+      end
+
       # Processes the .evc template source, converting custom tags into Rails View Component render calls.
       # This method is recursive to handle nested components.
       def process_template(source, template)
@@ -98,15 +110,7 @@ module EvcRails
             attributes_str = match[3].strip
 
             # Determine the full component class name
-            # Handle both namespaced (UI::Button) and non-namespaced (Button) components
-            component_class_name = if tag_name.include?("::")
-                                     # For namespaced components, just append Component
-                                     "#{tag_name}Component"
-                                   elsif tag_name.end_with?("Component")
-                                     tag_name
-                                   else
-                                     "#{tag_name}Component"
-                                   end
+            component_class_name = resolve_component_class_name(tag_name)
 
             # Validate if the component class exists using memoization.
             # The component class will only be constantized once per unique class name
@@ -165,10 +169,15 @@ module EvcRails
             # Pop the corresponding opening tag from the stack
             component_class_name, render_params_str, start_pos = stack.pop
 
+            # Apply the same transformation to the closing tag name for comparison
+            expected_closing_component_name = resolve_component_class_name(closing_tag_name)
+
             # Check for mismatched tags (e.g., <div></p>)
-            if component_class_name != closing_tag_name
+            if component_class_name != expected_closing_component_name
+              # Extract the original tag name from the component class name for the error message
+              expected_tag_name = component_class_name.gsub(/Component$/, "")
               raise ArgumentError,
-                    "Mismatched tags: expected </#{component_class_name}>, got </#{closing_tag_name}> in template #{template.identifier}"
+                    "Mismatched tags: expected </#{expected_tag_name}>, got </#{closing_tag_name}> in template #{template.identifier}"
             end
 
             # Recursively process the content between the opening and closing tags.

@@ -87,117 +87,130 @@ module EvcRails
       end
 
       # Processes the .evc template source, converting custom tags into Rails View Component render calls.
-      # This method is recursive to handle nested components.
+      # This method uses a single-pass parser with a revised strategy for handling nesting.
       def process_template(source, template)
-        # Using an array for `parts` and then joining at the end is generally more efficient
-        # for building strings in Ruby than repeated string concatenations (`<<`).
         parts = []
         pos = 0
-        stack = [] # Track [component_class_name, render_params_str, start_pos_in_source]
-
+        # Stack tracks [tag_name, component_class_name, render_params_str, content_start_pos_in_source]
+        stack = []
+      
         # Initialize memoization cache for this processing run
         @component_class_memo = {}
-
+      
+        # Debugging: Log the source template
+        Rails.logger.debug "Processing template: #{template.identifier}\nSource:\n#{source}"
+      
         while pos < source.length
           # Try to match an opening or self-closing tag
           if (match = TAG_REGEX.match(source, pos))
-            # Append text before the current tag to the result parts
-            parts << source[pos...match.begin(0)]
-            pos = match.end(0) # Move position past the matched tag
-
+            # Append text before the tag to parts
+            parts << source[pos...match.begin(0)] if pos < match.begin(0)
+            pos = match.end(0) # Move past the matched tag
+      
             is_self_closing = match[0].end_with?("/>")
             tag_name = match[1]
             attributes_str = match[3].strip
-
-            # Determine the full component class name
+      
+            # Debugging: Log the matched tag
+            Rails.logger.debug "Matched tag: #{match[0]} at position #{match.begin(0)}"
+      
+            # Resolve component class name
             component_class_name = resolve_component_class_name(tag_name)
-
-            # Validate if the component class exists using memoization.
-            # The component class will only be constantized once per unique class name
-            # within a single template processing call.
+      
+            # Validate component class
             component_class = @component_class_memo[component_class_name] ||= begin
               component_class_name.constantize
             rescue NameError
               raise ArgumentError, "Component #{component_class_name} not found in template #{template.identifier}"
             end
-
-            # Parse attributes and format them for the render call
+      
+            # Parse attributes
             params = []
             attributes_str.scan(ATTRIBUTE_REGEX) do |key, quoted_value, single_quoted_value, ruby_expression|
-              # Basic validation for attribute keys
               unless key =~ /\A[a-z_][a-z0-9_]*\z/i
                 raise ArgumentError, "Invalid attribute key '#{key}' in template #{template.identifier}"
               end
-
+      
               formatted_key = "#{key}:"
               if ruby_expression
-                # For Ruby expressions, directly embed the expression.
                 params << "#{formatted_key} #{ruby_expression}"
               elsif quoted_value
-                # For double-quoted string literals, escape double quotes within the value.
                 params << "#{formatted_key} \"#{quoted_value.gsub('"', '\"')}\""
               elsif single_quoted_value
-                # For single-quoted string literals, escape single quotes within the value
-                # and wrap in double quotes for Ruby string literal syntax.
                 params << "#{formatted_key} \"#{single_quoted_value.gsub("'", "\\'")}\""
               end
             end
-
+      
             render_params_str = params.join(", ")
-
+      
             if is_self_closing
-              # If it's a self-closing tag, generate a simple render call.
+              # Self-closing tag: render immediately
               parts << "<%= render #{component_class_name}.new(#{render_params_str}) %>"
+              Rails.logger.debug "Rendered self-closing tag: #{tag_name}"
             else
-              # If it's an opening tag, push it onto the stack to await its closing tag.
-              stack << [component_class_name, render_params_str, pos]
+              # Opening tag: push to stack with source position
+              stack << [tag_name, component_class_name, render_params_str, pos]
+              Rails.logger.debug "Pushed opening tag: #{tag_name}, Stack: #{stack.inspect}"
             end
-
+      
           # Try to match a closing tag
           elsif (match = CLOSE_TAG_REGEX.match(source, pos))
-            # Append text before the closing tag to the result parts
-            parts << source[pos...match.begin(0)]
-            pos = match.end(0) # Move position past the matched tag
-
+            # Append text before the closing tag
+            parts << source[pos...match.begin(0)] if pos < match.begin(0)
+            pos = match.end(0) # Move past the matched tag
+      
             closing_tag_name = match[1]
-
+            line_number = source[0...match.begin(0)].count("\n") + 1
+      
+            # Debugging: Log the closing tag
+            Rails.logger.debug "Matched closing tag: </#{closing_tag_name}> at position #{match.begin(0)}, line #{line_number}"
+      
             # Check for unmatched closing tags
             if stack.empty?
-              raise ArgumentError, "Unmatched closing tag </#{closing_tag_name}> in template #{template.identifier}"
+              raise ArgumentError, "Unmatched closing tag </#{closing_tag_name}> at line #{line_number} in template #{template.identifier}"
             end
-
-            # Pop the corresponding opening tag from the stack
-            component_class_name, render_params_str, start_pos = stack.pop
-
-            # Apply the same transformation to the closing tag name for comparison
-            expected_closing_component_name = resolve_component_class_name(closing_tag_name)
-
-            # Check for mismatched tags (e.g., <div></p>)
-            if component_class_name != expected_closing_component_name
-              # Extract the original tag name from the component class name for the error message
-              expected_tag_name = component_class_name.gsub(/Component$/, "")
-              raise ArgumentError,
-                    "Mismatched tags: expected </#{expected_tag_name}>, got </#{closing_tag_name}> in template #{template.identifier}"
+      
+            # Find the matching opening tag in the stack
+            matching_index = stack.rindex { |(tag_name, _, _, _)| tag_name == closing_tag_name }
+            unless matching_index
+              raise ArgumentError, "No matching opening tag for </#{closing_tag_name}> at line #{line_number} in template #{template.identifier}"
             end
-
-            # Recursively process the content between the opening and closing tags.
-            # This is where nested components are handled.
-            content = process_template(source[start_pos...match.begin(0)], template)
-
-            # Generate the render call with a block for the content.
-            parts << "<%= render #{component_class_name}.new(#{render_params_str}) do %>#{content}<% end %>"
-
+      
+            # Pop all entries up to and including the matching tag
+            popped = stack.slice!(matching_index..-1)
+            original_tag_name, component_class_name, render_params_str, content_start_pos = popped.last
+      
+            # Debugging: Log stack state
+            Rails.logger.debug "Popped tag: #{original_tag_name}, Stack: #{stack.inspect}"
+      
+            # Collect content from content_start_pos to current position
+            block_content = source[content_start_pos...match.begin(0)]
+      
+            # Process nested content recursively to handle any components within
+            processed_block_content = process_template(block_content, template)
+      
+            # Construct the render call with block
+            full_render_call = "<%= render #{component_class_name}.new(#{render_params_str}) do %>#{processed_block_content}<% end %>"
+            parts << full_render_call
+      
+            Rails.logger.debug "Rendered component: #{original_tag_name} with content:\n#{processed_block_content}"
+      
           else
-            # If no tags are matched, append the rest of the source and break the loop.
-            parts << source[pos..-1]
+            # No tags matched; append remaining source and break
+            parts << source[pos..-1] if pos < source.length
             break
           end
         end
-
-        # After parsing, if the stack is not empty, it means there are unclosed tags.
-        raise ArgumentError, "Unclosed tag <#{stack.last[0]}> in template #{template.identifier}" unless stack.empty?
-
-        # Join all the collected parts to form the final ERB string.
+      
+        # Check for unclosed tags
+        unless stack.empty?
+          line_number = source[0...pos].count("\n") + 1
+          raise ArgumentError, "Unclosed tag <#{stack.last[0]}> at line #{line_number} in template #{template.identifier}"
+        end
+      
+        # Debugging: Log final output
+        Rails.logger.debug "Final processed template:\n#{parts.join('')}"
+      
         parts.join("")
       end
     end

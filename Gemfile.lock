@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    evc_rails (0.1.4)
+    evc_rails (0.2.0)
       actionview
       activesupport
       rails (>= 6.0)

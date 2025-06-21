@@ -275,12 +275,12 @@ class TemplateHandlerTest < Minitest::Test
   def test_slot_support
     source = <<~EVC.strip
       <Card>
-        <Card::Header>
+        <WithHeader>
           <h1>Title</h1>
-        </Card::Header>
-        <Card::Body>
+        </WithHeader>
+        <WithBody>
           <p>Body content</p>
-        </Card::Body>
+        </WithBody>
       </Card>
     EVC
     expected = <<~ERB.strip
@@ -300,9 +300,9 @@ class TemplateHandlerTest < Minitest::Test
   def test_renders_many_support
     source = <<~EVC.strip
       <List>
-        <List::Item>Item 1</List::Item>
-        <List::Item>Item 2</List::Item>
-        <List::Item>Item 3</List::Item>
+        <WithItem>Item 1</WithItem>
+        <WithItem>Item 2</WithItem>
+        <WithItem>Item 3</WithItem>
       </List>
     EVC
     expected = <<~ERB.strip
@@ -319,9 +319,9 @@ class TemplateHandlerTest < Minitest::Test
   def test_renders_many_with_attributes
     source = <<~EVC.strip
       <List>
-        <List::Item class="first">Item 1</List::Item>
-        <List::Item class="second">Item 2</List::Item>
-        <List::Item class="third">Item 3</List::Item>
+        <WithItem class="first">Item 1</WithItem>
+        <WithItem class="second">Item 2</WithItem>
+        <WithItem class="third">Item 3</WithItem>
       </List>
     EVC
     expected = <<~ERB.strip
@@ -369,7 +369,7 @@ class TemplateHandlerTest < Minitest::Test
   end
 
   def test_whitespace_normalization_with_slots
-    source = "<Card><Card::Header>Title</Card::Header></Card>"
+    source = "<Card><WithHeader>Title</WithHeader></Card>"
     result = @handler.call(@template, source)
 
     # Should preserve the original structure (no normalization for now)
@@ -451,24 +451,6 @@ class TemplateHandlerTest < Minitest::Test
   def test_with_slot_syntax_with_ruby_expressions
     source = "<Card><WithHeader user={@current_user}>Welcome</WithHeader></Card>"
     expected = "<%= render CardComponent.new do |c| %><% c.header(user: @current_user) do %>Welcome<% end %><% end %>"
-    result = @handler.call(@template, source)
-    assert_equal "ERB_COMPILED: #{expected}", result
-  end
-
-  def test_with_slot_syntax_backward_compatibility
-    # Test that both WithSlotName and Component::slotname work
-    source = <<~EVC.strip
-      <Card>
-        <WithHeader>New syntax</WithHeader>
-        <Card::Body>Old syntax</Card::Body>
-      </Card>
-    EVC
-    expected = <<~ERB.strip
-      <%= render CardComponent.new do |c| %>
-        <% c.header do %>New syntax<% end %>
-        <% c.body do %>Old syntax<% end %>
-      <% end %>
-    ERB
     result = @handler.call(@template, source)
     assert_equal "ERB_COMPILED: #{expected}", result
   end

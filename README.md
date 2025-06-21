@@ -231,17 +231,6 @@ Becomes:
 </Navigation>
 ```
 
-#### Backward Compatibility
-
-The old `Component::slotname` syntax is still supported for backward compatibility:
-
-```erb
-<Card>
-  <Card::header>Title</Card::header>
-  <Card::body>Content</Card::body>
-</Card>
-```
-
 ### Complex Nesting
 
 ```erb

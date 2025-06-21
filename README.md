@@ -123,13 +123,13 @@ Becomes:
 #### Ruby Expressions
 
 ```erb
-<Button user="{@current_user}" count="{@items.count}" />
+<Button user={@current_user} count={@items.count} />
 ```
 
 #### Multiple Attributes
 
 ```erb
-<Card class="shadow-lg" data-testid="featured-card" user="{@user}">
+<Card class="shadow-lg" data-testid="featured-card" user={@user}>
   Content here
 </Card>
 ```
@@ -140,7 +140,7 @@ Organize your components in subdirectories:
 
 ```erb
 <UI::Button size="lg" />
-<Forms::Fields::TextField value="{@email}" />
+<Forms::Fields::TextField value={@email} />
 <Layout::Container class="max-w-4xl">
   <UI::Card>Content</UI::Card>
 </Layout::Container>
@@ -249,7 +249,7 @@ You can mix regular HTML, ERB, and component tags:
 
   <div class="grid">
     <% @posts.each do |post| %>
-    <PostCard post="{post}" />
+    <PostCard post={post} />
     <% end %>
   </div>
 </div>

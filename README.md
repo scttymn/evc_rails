@@ -28,9 +28,9 @@ class ButtonComponent < ViewComponent::Base
 end
 ```
 
-```html
+```erb
 <!-- Now you can use it with EVC syntax -->
-<button variant="primary" size="lg">Click me</button>
+<Button variant="primary" size="lg">Click me</Button>
 ```
 
 No component modifications required - just install and enjoy easier syntax!
@@ -69,11 +69,11 @@ The template handler will be automatically registered for `.evc` files.
 
 Create `.evc` files in your `app/views` directory:
 
-```html
+```erb
 <!-- app/views/pages/home.evc -->
 <h1>Welcome to our app</h1>
 
-<button size="lg" variant="primary">Get Started</button>
+<Button size="lg" variant="primary">Get Started</Button>
 
 <Card>
   <h2>Featured Content</h2>
@@ -98,10 +98,10 @@ This becomes:
 
 ### Self-Closing Components
 
-```html
-<button />
+```erb
+<Button />
 <Icon name="star" />
-<spacer height="20" />
+<Spacer height="20" />
 ```
 
 Becomes:
@@ -116,19 +116,19 @@ Becomes:
 
 #### String Attributes
 
-```html
-<button size="lg" variant="primary" />
+```erb
+<Button size="lg" variant="primary" />
 ```
 
 #### Ruby Expressions
 
-```html
-<button user="{@current_user}" count="{@items.count}" />
+```erb
+<Button user="{@current_user}" count="{@items.count}" />
 ```
 
 #### Multiple Attributes
 
-```html
+```erb
 <Card class="shadow-lg" data-testid="featured-card" user="{@user}">
   Content here
 </Card>
@@ -138,7 +138,7 @@ Becomes:
 
 Organize your components in subdirectories:
 
-```html
+```erb
 <UI::Button size="lg" />
 <Forms::Fields::TextField value="{@email}" />
 <Layout::Container class="max-w-4xl">
@@ -164,7 +164,7 @@ class CardComponent < ViewComponent::Base
 end
 ```
 
-```html
+```erb
 <Card>
   <Card::Header>
     <h1>Welcome</h1>
@@ -197,7 +197,7 @@ class ListComponent < ViewComponent::Base
 end
 ```
 
-```html
+```erb
 <List>
   <List::Item>Item 1</List::Item>
   <List::Item>Item 2</List::Item>
@@ -217,7 +217,7 @@ Becomes:
 
 ### Complex Nesting
 
-```html
+```erb
 <UI::Card>
   <h2 class="text-2xl font-semibold">Dashboard</h2>
 
@@ -239,7 +239,7 @@ Becomes:
 
 You can mix regular HTML, ERB, and component tags:
 
-```html
+```erb
 <div class="container">
   <h1><%= @page.title %></h1>
 

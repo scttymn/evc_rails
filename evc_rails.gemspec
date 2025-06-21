@@ -8,8 +8,8 @@ Gem::Specification.new do |spec|
   spec.authors = ["scttymn"]
   spec.email = ["scotty@hey.com"]
 
-  spec.summary = "Enables JSX-like PascalCase component tags in Rails .evc view files."
-  spec.description = "A Rails engine that provides a custom template handler for .evc files, allowing developers to use PascalCase ViewComponent tags (e.g., <MyComponent />) directly in their HTML, similar to JSX."
+  spec.summary = "JSX-like syntax for Rails ViewComponent"
+  spec.description = "Embedded ViewComponents (EVC) is a Rails template handler that brings JSX-like syntax to ViewComponent, allowing you to write custom component tags directly in your .evc templates. It's a drop-in replacement for .erb files that works seamlessly with existing ViewComponents, supporting self-closing tags, attributes, namespaced components, slots, and complex nesting while maintaining full ERB compatibility."
 
   spec.homepage = "https://github.com/scttymn/evc_rails"
   spec.license = "MIT"

@@ -199,9 +199,13 @@ end
 
 ```erb
 <List>
-  <WithItem>Item 1</WithItem>
-  <WithItem>Item 2</WithItem>
-  <WithItem>Item 3</WithItem>
+  <% @todo_items.each do |item| %>
+    <WithItem>
+      <span class="<%= item.completed? ? 'line-through' : '' %>">
+        <%= item.title %>
+      </span>
+    </WithItem>
+  <% end %>
 </List>
 ```
 
@@ -209,9 +213,13 @@ Becomes:
 
 ```erb
 <%= render ListComponent.new do |c| %>
-  <% c.item do %>Item 1<% end %>
-  <% c.item do %>Item 2<% end %>
-  <% c.item do %>Item 3<% end %>
+  <% @todo_items.each do |item| %>
+    <% c.item do %>
+      <span class="<%= item.completed? ? 'line-through' : '' %>">
+        <%= item.title %>
+      </span>
+    <% end %>
+  <% end %>
 <% end %>
 ```
 

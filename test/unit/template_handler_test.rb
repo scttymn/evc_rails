@@ -109,6 +109,71 @@ class TemplateHandlerTest < Minitest::Test
     assert_equal "ERB_COMPILED: #{expected}", result
   end
 
+  def test_uses_snake_case_name_for_yielded_variable
+    source = <<~EVC.strip
+      <Accordion>
+        <WithTrigger>
+          <%= accordion.arrow %>
+        </WithTrigger>
+      </Accordion>
+    EVC
+    expected = <<~ERB.strip
+      <%= render AccordionComponent.new do |accordion| %>
+        <% accordion.with_trigger do %>
+          <%= accordion.arrow %>
+        <% end %>
+      <% end %>
+    ERB
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_uses_as_attribute_for_yielded_variable
+    source = <<~EVC.strip
+      <Accordion as="my_accordion">
+        <WithTrigger>
+          <%= my_accordion.arrow %>
+        </WithTrigger>
+      </Accordion>
+    EVC
+    expected = <<~ERB.strip
+      <%= render AccordionComponent.new do |my_accordion| %>
+        <% my_accordion.with_trigger do %>
+          <%= my_accordion.arrow %>
+        <% end %>
+      <% end %>
+    ERB
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_handles_nested_components_with_yielded_variables
+    source = <<~EVC.strip
+      <Card as="outer_card">
+        <WithContent>
+          <p><%= outer_card.title %></p>
+          <Card as="inner_card">
+            <WithHeader><%= inner_card.title %></WithHeader>
+          </Card>
+        </WithContent>
+      </Card>
+    EVC
+    expected = <<~ERB.strip
+      <%= render CardComponent.new do |outer_card| %>
+        <% outer_card.with_content do %>
+          <p><%= outer_card.title %></p>
+          <%= render CardComponent.new do |inner_card| %>
+            <% inner_card.with_header do %>
+              <%= inner_card.title %>
+            <% end %>
+          <% end %>
+        <% end %>
+      <% end %>
+    ERB
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
   def test_deeply_nested_and_multiple_components
     source = <<~EVC.strip
       <Ui::Card>
@@ -512,5 +577,28 @@ class TemplateHandlerTest < Minitest::Test
       []
     end
     assert keys.any?, "Fallback cache should have at least one entry"
+  end
+
+  def test_nested_component_accessing_parent_context
+    source = <<~EVC.strip
+      <Accordion>
+        <WithTrigger>
+          <Button>
+            Click me <%= accordion.arrow %>
+          </Button>
+        </WithTrigger>
+      </Accordion>
+    EVC
+    expected = <<~ERB.strip
+      <%= render AccordionComponent.new do |accordion| %>
+        <% accordion.with_trigger do %>
+          <%= render ButtonComponent.new do %>
+            Click me <%= accordion.arrow %>
+          <% end %>
+        <% end %>
+      <% end %>
+    ERB
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
   end
 end

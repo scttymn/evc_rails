@@ -104,42 +104,35 @@ module EvcRails
             match = next_open
             tag_name = match[1]
             attributes_str = match[2].to_s.strip
+            params, as_variable = parse_attributes(attributes_str, attribute_regex)
+            param_str = params.join(", ")
             is_self_closing = match[0].end_with?("/>")
 
             # Add content before the tag
             result << source[pos...match.begin(0)] if pos < match.begin(0)
 
             # Determine if this is a slot (e.g., WithHeader, WithPost)
-            parent = stack.last
+            parent_component = stack.reverse.find { |item| item[4] == :component }
             is_slot = false
             slot_name = nil
-            slot_parent = nil
-            if parent
-              parent_tag = parent[0]
 
-              # Check for WithSlotName syntax (e.g., WithHeader, WithPost)
-              if tag_name.start_with?("With")
-                is_slot = true
-                slot_name = tag_name[4..-1].downcase # Remove "With" prefix and convert to lowercase
-                slot_parent = parent_tag
-                # Mark parent as having a slot
-                parent[6] = true
-              end
+            if parent_component && tag_name.start_with?("With")
+              is_slot = true
+              # Convert CamelCase slot name to snake_case
+              slot_name = tag_name[4..].gsub(/([A-Z]+)([A-Z][a-z])/, '\1_\2').gsub(/([a-z\d])([A-Z])/, '\1_\2').downcase
+              parent_component[6] = true # Mark parent as having a slot
             end
 
             if is_self_closing
               if is_slot
-                params = parse_attributes(attributes_str, attribute_regex)
-                param_str = params.join(", ")
+                parent_variable = parent_component[8]
                 result << if param_str.empty?
-                            "<% c.#{slot_name} do %><% end %>"
+                            "<% #{parent_variable}.with_#{slot_name} do %><% end %>"
                           else
-                            "<% c.#{slot_name}(#{param_str}) do %><% end %>"
+                            "<% #{parent_variable}.with_#{slot_name}(#{param_str}) do %><% end %>"
                           end
               else
                 component_class = "#{tag_name}Component"
-                params = parse_attributes(attributes_str, attribute_regex)
-                param_str = params.join(", ")
                 result << if param_str.empty?
                             "<%= render #{component_class}.new %>"
                           else
@@ -147,35 +140,23 @@ module EvcRails
                           end
               end
             elsif is_slot
-              params = parse_attributes(attributes_str, attribute_regex)
-              param_str = params.join(", ")
-              stack << [tag_name, nil, param_str, result.length, :slot, slot_name, false, match.begin(0)]
+              parent_variable = parent_component[8]
+              stack << [tag_name, nil, param_str, result.length, :slot, slot_name, false, match.begin(0), nil]
               result << if param_str.empty?
-                          "<% c.#{slot_name} do %>"
+                          "<% #{parent_variable}.with_#{slot_name} do %>"
                         else
-                          "<% c.#{slot_name}(#{param_str}) do %>"
+                          "<% #{parent_variable}.with_#{slot_name}(#{param_str}) do %>"
                         end
             else
               component_class = "#{tag_name}Component"
-              params = parse_attributes(attributes_str, attribute_regex)
-              param_str = params.join(", ")
-              # If this is the outermost component, add |c| for slot support only if a slot is used
-              if stack.empty?
-                stack << [tag_name, component_class, param_str, result.length, :component, nil, false, match.begin(0)] # [tag_name, class, params, pos, type, slot_name, slot_used, open_pos]
-                # We'll patch in |c| at close if needed
-                result << if param_str.empty?
-                            "<%= render #{component_class}.new do %>"
-                          else
-                            "<%= render #{component_class}.new(#{param_str}) do %>"
-                          end
-              else
-                stack << [tag_name, component_class, param_str, result.length, :component, nil, false, match.begin(0)]
-                result << if param_str.empty?
-                            "<%= render #{component_class}.new do %>"
-                          else
-                            "<%= render #{component_class}.new(#{param_str}) do %>"
-                          end
-              end
+              variable_name = as_variable || component_variable_name(tag_name)
+              stack << [tag_name, component_class, param_str, result.length, :component, nil, false, match.begin(0),
+                        variable_name]
+              result << if param_str.empty?
+                          "<%= render #{component_class}.new do %>"
+                        else
+                          "<%= render #{component_class}.new(#{param_str}) do %>"
+                        end
             end
 
             pos = match.end(0)
@@ -195,7 +176,7 @@ module EvcRails
             end
 
             # Find the matching opening tag (from the end)
-            matching_index = stack.rindex { |(tag_name, _, _, _, _, _, _, _)| tag_name == closing_tag_name }
+            matching_index = stack.rindex { |(tag_name, *)| tag_name == closing_tag_name }
             if matching_index.nil?
               line = line_number_at_position(source, match.begin(0))
               col = column_number_at_position(source, match.begin(0))
@@ -203,17 +184,29 @@ module EvcRails
             end
 
             # Pop the matching opening tag
-            tag_name, component_class, param_str, start_pos, type, slot_name, slot_used, open_pos = stack.delete_at(matching_index)
+            open_tag_data = stack.delete_at(matching_index)
+            tag_type = open_tag_data[4]
 
-            # Patch in |c| for top-level component if a slot was used
-            if type == :component && stack.empty? && slot_used
-              # Find the opening block and insert |c|
-              open_block_regex = /(<%= render #{component_class}\.new(?:\(.*?\))? do)( %>)/
-              result.sub!(open_block_regex) { "#{::Regexp.last_match(1)} |c|#{::Regexp.last_match(2)}" }
+            if tag_type == :component
+              _tag_name, component_class, param_str, start_pos, _type, _slot_name, slot_used, _open_pos, variable_name = open_tag_data
+
+              # Patch in |variable_name| for component if a slot was used
+              if slot_used
+                # More robustly find the end of the `do` block to insert the variable.
+                # This avoids faulty regex matching on complex parameters.
+                relevant_part = result[start_pos..-1]
+                match_for_insertion = /( do)( %>)/.match(relevant_part)
+                if match_for_insertion
+                  # Insert the variable name just before the ` do`
+                  insertion_point = start_pos + match_for_insertion.begin(1)
+                  result.insert(insertion_point, " |#{variable_name}|")
+                end
+              end
+
+              result << "<% end %>"
+            else # It's a slot
+              result << "<% end %>"
             end
-
-            # Add closing block
-            result << (type == :slot ? "<% end %>" : "<% end %>")
 
             pos = match.end(0)
           else
@@ -241,7 +234,24 @@ module EvcRails
         erb_string
       end
 
+      def component_variable_name(tag_name)
+        # Simplified version of ActiveSupport's underscore
+        name = tag_name.gsub(/::/, "_")
+        name.gsub!(/([A-Z\d]+)([A-Z][a-z])/, '\1_\2')
+        name.gsub!(/([a-z\d])([A-Z])/, '\1_\2')
+        name.tr!("-", "_")
+        name.downcase!
+        name
+      end
+
       def parse_attributes(attributes_str, attribute_regex = ATTRIBUTE_REGEX)
+        as_variable = nil
+        # Find and remove the `as` attribute, storing its value.
+        attributes_str = attributes_str.gsub(/\bas=(?:"([^"]*)"|'([^']*)')/) do |_match|
+          as_variable = Regexp.last_match(1) || Regexp.last_match(2)
+          ""
+        end.strip
+
         params = []
         attributes_str.scan(attribute_regex) do |key, quoted_value, single_quoted_value, ruby_expression|
           if ruby_expression
@@ -252,7 +262,7 @@ module EvcRails
             params << "#{key}: \"#{single_quoted_value.gsub("'", "\\'")}\""
           end
         end
-        params
+        [params, as_variable]
       end
     end
   end

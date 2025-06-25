@@ -118,7 +118,7 @@ class TemplateHandlerTest < Minitest::Test
       </Accordion>
     EVC
     expected = <<~ERB.strip
-      <%= render AccordionComponent.new do |accordion| %>
+      <%= render AccordionComponent.new |accordion| do %>
         <% accordion.with_trigger do %>
           <%= accordion.arrow %>
         <% end %>
@@ -137,7 +137,7 @@ class TemplateHandlerTest < Minitest::Test
       </Accordion>
     EVC
     expected = <<~ERB.strip
-      <%= render AccordionComponent.new do |my_accordion| %>
+      <%= render AccordionComponent.new |my_accordion| do %>
         <% my_accordion.with_trigger do %>
           <%= my_accordion.arrow %>
         <% end %>
@@ -159,13 +159,11 @@ class TemplateHandlerTest < Minitest::Test
       </Card>
     EVC
     expected = <<~ERB.strip
-      <%= render CardComponent.new do |outer_card| %>
+      <%= render CardComponent.new |outer_card| do %>
         <% outer_card.with_content do %>
           <p><%= outer_card.title %></p>
-          <%= render CardComponent.new do |inner_card| %>
-            <% inner_card.with_header do %>
-              <%= inner_card.title %>
-            <% end %>
+          <%= render CardComponent.new |inner_card| do %>
+            <% inner_card.with_header do %><%= inner_card.title %><% end %>
           <% end %>
         <% end %>
       <% end %>
@@ -349,11 +347,11 @@ class TemplateHandlerTest < Minitest::Test
       </Card>
     EVC
     expected = <<~ERB.strip
-      <%= render CardComponent.new do |c| %>
-        <% c.header do %>
+      <%= render CardComponent.new |card| do %>
+        <% card.with_header do %>
           <h1>Title</h1>
         <% end %>
-        <% c.body do %>
+        <% card.with_body do %>
           <p>Body content</p>
         <% end %>
       <% end %>
@@ -371,10 +369,10 @@ class TemplateHandlerTest < Minitest::Test
       </List>
     EVC
     expected = <<~ERB.strip
-      <%= render ListComponent.new do |c| %>
-        <% c.item do %>Item 1<% end %>
-        <% c.item do %>Item 2<% end %>
-        <% c.item do %>Item 3<% end %>
+      <%= render ListComponent.new |list| do %>
+        <% list.with_item do %>Item 1<% end %>
+        <% list.with_item do %>Item 2<% end %>
+        <% list.with_item do %>Item 3<% end %>
       <% end %>
     ERB
     result = @handler.call(@template, source)
@@ -390,10 +388,10 @@ class TemplateHandlerTest < Minitest::Test
       </List>
     EVC
     expected = <<~ERB.strip
-      <%= render ListComponent.new do |c| %>
-        <% c.item(class: "first") do %>Item 1<% end %>
-        <% c.item(class: "second") do %>Item 2<% end %>
-        <% c.item(class: "third") do %>Item 3<% end %>
+      <%= render ListComponent.new |list| do %>
+        <% list.with_item(class: "first") do %>Item 1<% end %>
+        <% list.with_item(class: "second") do %>Item 2<% end %>
+        <% list.with_item(class: "third") do %>Item 3<% end %>
       <% end %>
     ERB
     result = @handler.call(@template, source)
@@ -435,11 +433,8 @@ class TemplateHandlerTest < Minitest::Test
 
   def test_whitespace_normalization_with_slots
     source = "<Card><WithHeader>Title</WithHeader></Card>"
+    expected = "<%= render CardComponent.new |card| do %><% card.with_header do %>Title<% end %><% end %>"
     result = @handler.call(@template, source)
-
-    # Should preserve the original structure (no normalization for now)
-    expected = "<%= render CardComponent.new do |c| %><% c.header do %>Title<% end %><% end %>"
-
     assert_equal "ERB_COMPILED: #{expected}", result
   end
 
@@ -455,11 +450,11 @@ class TemplateHandlerTest < Minitest::Test
       </Card>
     EVC
     expected = <<~ERB.strip
-      <%= render CardComponent.new do |c| %>
-        <% c.header do %>
+      <%= render CardComponent.new |card| do %>
+        <% card.with_header do %>
           <h1>Title</h1>
         <% end %>
-        <% c.body do %>
+        <% card.with_body do %>
           <p>Body content</p>
         <% end %>
       <% end %>
@@ -477,10 +472,10 @@ class TemplateHandlerTest < Minitest::Test
       </List>
     EVC
     expected = <<~ERB.strip
-      <%= render ListComponent.new do |c| %>
-        <% c.item do %>Item 1<% end %>
-        <% c.item do %>Item 2<% end %>
-        <% c.item do %>Item 3<% end %>
+      <%= render ListComponent.new |list| do %>
+        <% list.with_item do %>Item 1<% end %>
+        <% list.with_item do %>Item 2<% end %>
+        <% list.with_item do %>Item 3<% end %>
       <% end %>
     ERB
     result = @handler.call(@template, source)
@@ -496,10 +491,10 @@ class TemplateHandlerTest < Minitest::Test
       </List>
     EVC
     expected = <<~ERB.strip
-      <%= render ListComponent.new do |c| %>
-        <% c.item(class: "first") do %>Item 1<% end %>
-        <% c.item(class: "second") do %>Item 2<% end %>
-        <% c.item(class: "third") do %>Item 3<% end %>
+      <%= render ListComponent.new |list| do %>
+        <% list.with_item(class: "first") do %>Item 1<% end %>
+        <% list.with_item(class: "second") do %>Item 2<% end %>
+        <% list.with_item(class: "third") do %>Item 3<% end %>
       <% end %>
     ERB
     result = @handler.call(@template, source)
@@ -508,14 +503,14 @@ class TemplateHandlerTest < Minitest::Test
 
   def test_with_slot_syntax_self_closing
     source = "<Card><WithHeader /></Card>"
-    expected = "<%= render CardComponent.new do |c| %><% c.header do %><% end %><% end %>"
+    expected = "<%= render CardComponent.new |card| do %><% card.with_header do %><% end %><% end %>"
     result = @handler.call(@template, source)
     assert_equal "ERB_COMPILED: #{expected}", result
   end
 
   def test_with_slot_syntax_with_ruby_expressions
     source = "<Card><WithHeader user={@current_user}>Welcome</WithHeader></Card>"
-    expected = "<%= render CardComponent.new do |c| %><% c.header(user: @current_user) do %>Welcome<% end %><% end %>"
+    expected = "<%= render CardComponent.new |card| do %><% card.with_header(user: @current_user) do %>Welcome<% end %><% end %>"
     result = @handler.call(@template, source)
     assert_equal "ERB_COMPILED: #{expected}", result
   end
@@ -535,18 +530,46 @@ class TemplateHandlerTest < Minitest::Test
       </Navigation>
     EVC
     expected = <<~ERB.strip
-      <%= render NavigationComponent.new do |c| %>
-        <% c.link(href: learning_path, text: "Learning Path") do %><% end %>
-        <% c.link(href: courses_path, text: "All Courses") do %><% end %>
-        <% c.link(text: "Reports") do %>
-          <% c.sublink(href: reports_users_path, text: "Users") do %><% end %>
-          <% c.sublink(href: reports_activity_path, text: "Activity") do %><% end %>
+      <%= render NavigationComponent.new |navigation| do %>
+        <% navigation.with_link(href: learning_path, text: "Learning Path") do %><% end %>
+        <% navigation.with_link(href: courses_path, text: "All Courses") do %><% end %>
+        <% navigation.with_link(text: "Reports") do %>
+          <% navigation.with_sublink(href: reports_users_path, text: "Users") do %><% end %>
+          <% navigation.with_sublink(href: reports_activity_path, text: "Activity") do %><% end %>
         <% end %>
-        <% c.footer do %>
+        <% navigation.with_footer do %>
           <div>Footer content</div>
         <% end %>
       <% end %>
     ERB
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_boolean_attribute_shorthand
+    source = "<Button disabled required />"
+    expected = "<%= render ButtonComponent.new(disabled: true, required: true) %>"
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_mixed_boolean_and_regular_attributes
+    source = '<Button disabled size="lg" required />'
+    expected = '<%= render ButtonComponent.new(disabled: true, size: "lg", required: true) %>'
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_boolean_with_ruby_expression_attributes
+    source = "<Button disabled user={@current_user} required />"
+    expected = "<%= render ButtonComponent.new(disabled: true, user: @current_user, required: true) %>"
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_boolean_attribute_in_block_component
+    source = "<Button disabled>Click me</Button>"
+    expected = "<%= render ButtonComponent.new(disabled: true) do %>Click me<% end %>"
     result = @handler.call(@template, source)
     assert_equal "ERB_COMPILED: #{expected}", result
   end
@@ -590,7 +613,7 @@ class TemplateHandlerTest < Minitest::Test
       </Accordion>
     EVC
     expected = <<~ERB.strip
-      <%= render AccordionComponent.new do |accordion| %>
+      <%= render AccordionComponent.new |accordion| do %>
         <% accordion.with_trigger do %>
           <%= render ButtonComponent.new do %>
             Click me <%= accordion.arrow %>

@@ -13,7 +13,7 @@ module EvcRails
       CLOSE_TAG_REGEX = %r{</([A-Z][a-zA-Z0-9_]*(?:::[A-Z][a-zA-Z0-9_]*)*)>}
 
       # Regex for attributes
-      ATTRIBUTE_REGEX = /(\w+)=(?:"([^"]*)"|'([^']*)'|\{([^}]*)\})/
+      ATTRIBUTE_REGEX = /(\w+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|\{([^}]*)\}))?/
 
       # Cache for compiled templates
       @template_cache = {}
@@ -254,13 +254,16 @@ module EvcRails
 
         params = []
         attributes_str.scan(attribute_regex) do |key, quoted_value, single_quoted_value, ruby_expression|
-          if ruby_expression
-            params << "#{key}: #{ruby_expression}"
-          elsif quoted_value
-            params << "#{key}: \"#{quoted_value.gsub('"', '\\"')}\""
-          elsif single_quoted_value
-            params << "#{key}: \"#{single_quoted_value.gsub("'", "\\'")}\""
-          end
+          params << if ruby_expression
+                      "#{key}: #{ruby_expression}"
+                    elsif quoted_value
+                      "#{key}: \"#{quoted_value.gsub('"', '\\"')}\""
+                    elsif single_quoted_value
+                      "#{key}: \"#{single_quoted_value.gsub("'", "\\'")}\""
+                    else
+                      # Standalone attribute (no value) - treat as boolean true
+                      "#{key}: true"
+                    end
         end
         [params, as_variable]
       end

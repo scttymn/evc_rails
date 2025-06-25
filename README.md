@@ -176,6 +176,22 @@ There are two ways to pass information to a component:
 - **As attributes:** Data passed as attributes on the main component tag (e.g. `<Card title="...">`) is sent to its `initialize` method.
 - **As slot content:** Rich content passed via `<With...>` tags is used to populate the component's named slots.
 
+#### Boolean Attribute Shorthand
+
+You can use HTML-style boolean attributes in EVC. If you specify an attribute with no value, it will be passed as `true` to your component initializer. This makes templates more concise and readable:
+
+```erb
+<Button disabled required />
+```
+
+is equivalent to:
+
+```erb
+<%= render ButtonComponent.new(disabled: true, required: true) %>
+```
+
+This works for any boolean parameter your component defines.
+
 #### When a Block Variable is Yielded
 
 The contextual variable (e.g., `|card|`) is only yielded if one or more `<With...>` slot tags are present inside the component block. If you render a component like `<Card></Card>` with no slots inside, `evc_rails` is smart enough to render it without the `do |card|` part.

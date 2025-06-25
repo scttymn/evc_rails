@@ -150,8 +150,10 @@ module EvcRails
             else
               component_class = "#{tag_name}Component"
               variable_name = as_variable || component_variable_name(tag_name)
+              # If as_variable is present, force block variable to be yielded
+              force_block_variable = !as_variable.nil?
               stack << [tag_name, component_class, param_str, result.length, :component, nil, false, match.begin(0),
-                        variable_name]
+                        variable_name, force_block_variable]
               result << if param_str.empty?
                           "<%= render #{component_class}.new do %>"
                         else
@@ -188,10 +190,10 @@ module EvcRails
             tag_type = open_tag_data[4]
 
             if tag_type == :component
-              _tag_name, component_class, param_str, start_pos, _type, _slot_name, slot_used, _open_pos, variable_name = open_tag_data
+              _tag_name, component_class, param_str, start_pos, _type, _slot_name, slot_used, _open_pos, variable_name, force_block_variable = open_tag_data
 
-              # Patch in |variable_name| for component if a slot was used
-              if slot_used
+              # Patch in |variable_name| for component if a slot was used or as_variable was present
+              if slot_used || force_block_variable
                 # More robustly find the end of the `do` block to insert the variable.
                 # This avoids faulty regex matching on complex parameters.
                 relevant_part = result[start_pos..-1]

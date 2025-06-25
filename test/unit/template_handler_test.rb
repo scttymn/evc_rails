@@ -624,4 +624,50 @@ class TemplateHandlerTest < Minitest::Test
     result = @handler.call(@template, source)
     assert_equal "ERB_COMPILED: #{expected}", result
   end
+
+  def test_plural_slot_with_array_notation
+    source = <<~EVC.strip
+      <Navigation as="navigation">
+        <% navigation.with_links([
+          { name: "Home", href: "/" },
+          { name: "Pricing", href: "/pricing" },
+          { name: "Sign Up", href: "/sign-up" }
+        ]) %>
+      </Navigation>
+    EVC
+    expected = <<~ERB.strip
+      <%= render NavigationComponent.new |navigation| do %>
+        <% navigation.with_links([
+          { name: "Home", href: "/" },
+          { name: "Pricing", href: "/pricing" },
+          { name: "Sign Up", href: "/sign-up" }
+        ]) %>
+      <% end %>
+    ERB
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_as_attribute_yields_block_variable_without_slot
+    source = <<~EVC.strip
+      <Navigation as="nav">
+        <% nav.with_links([
+          { name: "Home", href: "/" },
+          { name: "Pricing", href: "/pricing" },
+          { name: "Sign Up", href: "/sign-up" }
+        ]) %>
+      </Navigation>
+    EVC
+    expected = <<~ERB.strip
+      <%= render NavigationComponent.new |nav| do %>
+        <% nav.with_links([
+          { name: "Home", href: "/" },
+          { name: "Pricing", href: "/pricing" },
+          { name: "Sign Up", href: "/sign-up" }
+        ]) %>
+      <% end %>
+    ERB
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
 end

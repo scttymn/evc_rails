@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.3] - 2024-12-19
+
+### Changed
+
+- **Block variable yielding with `as`**: The block variable is now always yielded if the `as` attribute is present on a component tag, even if no `<With...>` slot tags are used inside the block. This makes advanced usage (such as calling plural slot methods directly) more ergonomic and predictable.
+- **Documentation improvements**: Clarified the need for the `as` attribute when using plural slot methods with block variables, and improved wording for advanced usage in the README.
+- **Test suite**: Added and updated tests to verify block variable yielding with `as` and to match the new behavior.
 
 ## [0.2.2] - 2024-12-19
 
@@ -77,11 +83,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Drop-in replacement**: Works as a replacement for `.erb` files
 - **Basic caching**: Template compilation caching for performance
 
----
-
 ## Version History Notes
 
 - **0.1.0**: Initial release with core functionality
 - **0.2.0**: Major feature addition with slots and namespaced components
 - **0.2.1**: Improved variable naming and slot method compatibility
 - **0.2.2**: Added boolean attribute shorthand for cleaner templates
+- **0.2.3**: Added block variable yielding with `as` attribute for more ergonomic advanced usage

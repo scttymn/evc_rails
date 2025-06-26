@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2024-12-19
+
+### Added
+
+- **Enhanced slot nesting support**: Improved handling of deeply nested slots within components
+- **Self-closing slot optimization**: Self-closing slots now render as method calls without blocks for better performance
+- **Stack-based nesting logic**: More robust handling of complex nested component and slot structures
+
+### Changed
+
+- **Slot variable naming**: Improved slot variable naming by stripping `with_` prefix for cleaner block variables
+- **Nested slot context**: Enhanced logic to ensure slots use the nearest component variable unless directly nested inside another slot
+
+### Fixed
+
+- **Block variable syntax**: Fixed Ruby block variable syntax to use `do |var|` instead of `|var| do`
+- **Block variable yielding**: Corrected block variable yielding for complex nested structures
+- **Slot method compatibility**: Ensured proper compatibility with ViewComponent's generated slot methods
+- **Test suite improvements**: Updated all tests to reflect the new behavior and added comprehensive test coverage
+
 ## [0.2.3] - 2024-12-19
 
 ### Changed
@@ -90,3 +110,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **0.2.1**: Improved variable naming and slot method compatibility
 - **0.2.2**: Added boolean attribute shorthand for cleaner templates
 - **0.2.3**: Added block variable yielding with `as` attribute for more ergonomic advanced usage
+- **0.3.0**: Enhanced slot nesting support and improved block variable handling for complex component structures

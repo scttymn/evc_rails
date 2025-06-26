@@ -113,6 +113,7 @@ module EvcRails
 
             # Determine if this is a slot (e.g., WithHeader, WithPost)
             parent_component = stack.reverse.find { |item| item[4] == :component }
+            parent_slot_index = stack.rindex { |item| item[4] == :slot }
             is_slot = false
             slot_name = nil
 
@@ -121,15 +122,22 @@ module EvcRails
               # Convert CamelCase slot name to snake_case
               slot_name = tag_name[4..].gsub(/([A-Z]+)([A-Z][a-z])/, '\1_\2').gsub(/([a-z\d])([A-Z])/, '\1_\2').downcase
               parent_component[6] = true # Mark parent as having a slot
+              # If this slot is nested inside another slot, mark the parent slot as having nested slots
+              stack[parent_slot_index][6] = true if parent_slot_index
             end
 
             if is_self_closing
               if is_slot
-                parent_variable = parent_component[8]
+                # For self-closing slots, use the most recent slot variable if present, otherwise the component variable
+                parent_variable = if stack.last && stack.last[4] == :slot
+                                    stack.last[8]
+                                  else
+                                    parent_component[8]
+                                  end
                 result << if param_str.empty?
-                            "<% #{parent_variable}.with_#{slot_name} do %><% end %>"
+                            "<% #{parent_variable}.with_#{slot_name} %>"
                           else
-                            "<% #{parent_variable}.with_#{slot_name}(#{param_str}) do %><% end %>"
+                            "<% #{parent_variable}.with_#{slot_name}(#{param_str}) %>"
                           end
               else
                 component_class = "#{tag_name}Component"
@@ -140,8 +148,20 @@ module EvcRails
                           end
               end
             elsif is_slot
-              parent_variable = parent_component[8]
-              stack << [tag_name, nil, param_str, result.length, :slot, slot_name, false, match.begin(0), nil]
+              # For block slots, determine the parent variable
+              if stack.last && stack.last[4] == :slot
+                # The most recent stack entry is a slot; use its variable
+                parent_variable = stack.last[8]
+                # Mark the parent slot as having nested slots
+                stack.last[6] = true
+              else
+                # Otherwise, use the nearest component variable
+                parent_variable = parent_component[8]
+              end
+              # Generate a variable name for this slot (strip 'with_' prefix)
+              slot_variable_name = component_variable_name(tag_name.sub(/^With/, ""))
+              stack << [tag_name, nil, param_str, result.length, :slot, slot_name, false, match.begin(0),
+                        slot_variable_name]
               result << if param_str.empty?
                           "<% #{parent_variable}.with_#{slot_name} do %>"
                         else
@@ -150,7 +170,6 @@ module EvcRails
             else
               component_class = "#{tag_name}Component"
               variable_name = as_variable || component_variable_name(tag_name)
-              # If as_variable is present, force block variable to be yielded
               force_block_variable = !as_variable.nil?
               stack << [tag_name, component_class, param_str, result.length, :component, nil, false, match.begin(0),
                         variable_name, force_block_variable]
@@ -199,14 +218,23 @@ module EvcRails
                 relevant_part = result[start_pos..-1]
                 match_for_insertion = /( do)( %>)/.match(relevant_part)
                 if match_for_insertion
-                  # Insert the variable name just before the ` do`
-                  insertion_point = start_pos + match_for_insertion.begin(1)
+                  # Insert the variable name just after the ` do`
+                  insertion_point = start_pos + match_for_insertion.begin(1) + match_for_insertion[1].length
                   result.insert(insertion_point, " |#{variable_name}|")
                 end
               end
 
               result << "<% end %>"
             else # It's a slot
+              _tag_name, _component_class, param_str, start_pos, _type, _slot_name, has_nested_slots, _open_pos, slot_variable_name = open_tag_data
+              if has_nested_slots
+                relevant_part = result[start_pos..-1]
+                match_for_insertion = /( do)( %>)/.match(relevant_part)
+                if match_for_insertion
+                  insertion_point = start_pos + match_for_insertion.begin(1) + match_for_insertion[1].length
+                  result.insert(insertion_point, " |#{slot_variable_name}|")
+                end
+              end
               result << "<% end %>"
             end
 

@@ -64,6 +64,17 @@ $ bundle install
 
 The template handler will be automatically registered for `.evc` files.
 
+## Syntax Highlighting
+
+For the best development experience with EVC files, install the [EVC Language Support](https://github.com/senordelaflor/evc-language-support) extension for VS Code. This extension provides:
+
+- **Syntax highlighting** for ERB tags (`<% %>`, `<%= %>`, `<%# %>`)
+- **JSX-like attribute syntax** support (`prop={value}`)
+- **Nested bracket matching** for arrays and hashes
+- **HTML tag completion** via Emmet
+- **Auto-closing pairs** for brackets and ERB tags
+- **Proper folding** for ERB blocks
+
 ## Usage
 
 ### Basic Components

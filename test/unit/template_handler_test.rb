@@ -689,4 +689,11 @@ class TemplateHandlerTest < Minitest::Test
     result = @handler.call(@template, source)
     assert_equal "ERB_COMPILED: #{expected}", result
   end
+
+  def test_complex_array_and_hash_attribute
+    source = "<Table column_widths={[30, 20, 20, 20, {width: 10, min_width_rem: 5.625}]} />"
+    expected = "<%= render TableComponent.new(column_widths: [30, 20, 20, 20, {width: 10, min_width_rem: 5.625}]) %>"
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
 end

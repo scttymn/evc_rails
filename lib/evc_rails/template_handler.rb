@@ -283,17 +283,85 @@ module EvcRails
         end.strip
 
         params = []
-        attributes_str.scan(attribute_regex) do |key, quoted_value, single_quoted_value, ruby_expression|
-          params << if ruby_expression
-                      "#{key}: #{ruby_expression}"
-                    elsif quoted_value
-                      "#{key}: \"#{quoted_value.gsub('"', '\\"')}\""
-                    elsif single_quoted_value
-                      "#{key}: \"#{single_quoted_value.gsub("'", "\\'")}\""
-                    else
-                      # Standalone attribute (no value) - treat as boolean true
-                      "#{key}: true"
-                    end
+        str = attributes_str.dup
+        until str.nil? || str.empty?
+          str = "" if str.nil?
+          str.lstrip!
+          str = "" if str.nil?
+          break if str.empty?
+          # Match key
+          break unless str =~ /\A(\w+)/
+
+          key = ::Regexp.last_match(1)
+          str = str[::Regexp.last_match(0).length..-1]
+          str = "" if str.nil?
+          str.lstrip!
+          str = "" if str.nil?
+          if str.start_with?("=")
+            str = str[1..-1]
+            str = "" if str.nil?
+            str.lstrip!
+            str = "" if str.nil?
+            if str.start_with?("{")
+              # Parse balanced curly braces
+              depth = 0
+              i = 0
+              found = false
+              while true
+                str = "" if str.nil?
+                break if str.empty? || i >= str.length
+
+                c = str[i]
+                if c == "{"
+                  depth += 1
+                elsif c == "}"
+                  depth -= 1
+                  if depth == 0
+                    found = true
+                    break
+                  end
+                end
+                i += 1
+              end
+              if found
+                ruby_expr = str[1...i] # skip opening '{', up to before closing '}'
+                str = str[(i + 1)..-1]
+                str = "" if str.nil?
+                params << "#{key}: #{ruby_expr}"
+              else
+                # Unbalanced braces, treat as error or fallback
+                params << "#{key}: true"
+                str = ""
+              end
+            elsif str.start_with?("\"")
+              # Double-quoted string
+              if str =~ /\A"([^"]*)"/
+                str = str[::Regexp.last_match(0).length..-1]
+                str = "" if str.nil?
+                params << "#{key}: \"#{::Regexp.last_match(1).gsub('"', '\\"')}\""
+              else
+                params << "#{key}: true"
+                str = ""
+              end
+            elsif str.start_with?("'")
+              # Single-quoted string
+              if str =~ /\A'([^']*)'/
+                str = str[::Regexp.last_match(0).length..-1]
+                str = "" if str.nil?
+                params << "#{key}: \"#{::Regexp.last_match(1).gsub("'", "\\'")}\""
+              else
+                params << "#{key}: true"
+                str = ""
+              end
+            else
+              # Unquoted value or malformed, treat as boolean true
+              params << "#{key}: true"
+              str = ""
+            end
+          else
+            # Standalone attribute (no value) - treat as boolean true
+            params << "#{key}: true"
+          end
         end
         [params, as_variable]
       end

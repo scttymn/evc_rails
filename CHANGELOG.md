@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2024-12-19
+
+### Fixed
+
+- **Robust attribute parsing**: Fixed a bug where complex or nested Ruby expressions (e.g., arrays or hashes with nested braces) in attribute values could cause parsing errors or incorrect output. The attribute parser is now fully robust and handles any valid Ruby expression inside `{...}` for both component and slot attributes.
+
 ## [0.3.0] - 2024-12-19
 
 ### Added

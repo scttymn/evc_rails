@@ -2,6 +2,45 @@
 
 Embedded ViewComponents (EVC) is a Rails template handler that brings JSX-like syntax to ViewComponent, allowing you to write PascalCase component tags directly in your `.evc` templates.
 
+## Table of Contents
+
+- [Drop-in ERB Replacement](#drop-in-erb-replacement)
+- [Works with Existing ViewComponents](#works-with-existing-viewcomponents)
+- [Features](#features)
+- [Installation](#installation)
+- [Syntax Highlighting](#syntax-highlighting)
+- [Usage](#usage)
+  - [Basic Components](#basic-components)
+  - [Self-Closing Components](#self-closing-components)
+  - [Attributes](#attributes)
+    - [String Attributes](#string-attributes)
+    - [Ruby Expressions](#ruby-expressions)
+    - [Multiple Attributes](#multiple-attributes)
+    - [Kebab-case Attributes](#kebab-case-attributes)
+  - [Namespaced Components](#namespaced-components)
+  - [Slot Support](#slot-support)
+    - [Slot Naming Convention](#slot-naming-convention)
+    - [Attributes vs. Slots](#attributes-vs-slots)
+    - [Boolean Attribute Shorthand](#boolean-attribute-shorthand)
+    - [When a Block Variable is Yielded](#when-a-block-variable-is-yielded)
+    - [Single Slots (`renders_one`)](#single-slots-renders_one)
+    - [Self-Closing Slots](#self-closing-slots)
+    - [Slot Attributes with Ruby Expressions](#slot-attributes-with-ruby-expressions)
+    - [Multiple Slots (`renders_many`)](#multiple-slots-renders_many)
+    - [Custom Variable Naming with `as`](#custom-variable-naming-with-as)
+    - [Passing a Collection to a Plural Slot (Array Notation)](#passing-a-collection-to-a-plural-slot-array-notation)
+    - [Complex Nested Slot Structures](#complex-nested-slot-structures)
+  - [Mixed Content](#mixed-content)
+- [Error Handling](#error-handling)
+- [Caching](#caching)
+  - [Cache Management](#cache-management)
+- [Development](#development)
+  - [Running Tests](#running-tests)
+  - [Building the Gem](#building-the-gem)
+- [Requirements](#requirements)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Drop-in ERB Replacement
 
 EVC templates are a **drop-in replacement** for `.erb` files. All ERB features are fully supported:
@@ -13,6 +52,8 @@ EVC templates are a **drop-in replacement** for `.erb` files. All ERB features a
 - Layouts and content_for blocks
 
 The template handler processes EVC syntax first, then passes the result to the standard ERB handler for final rendering.
+
+[↑ Back to Table of Contents](#table-of-contents)
 
 ## Works with Existing ViewComponents
 
@@ -35,6 +76,8 @@ end
 
 No component modifications required - just install and enjoy easier syntax!
 
+[↑ Back to Table of Contents](#table-of-contents)
+
 ## Features
 
 - **JSX-like syntax** for ViewComponent tags
@@ -47,6 +90,8 @@ No component modifications required - just install and enjoy easier syntax!
 - **Production-ready caching** with Rails.cache integration
 - **Better error messages** with line numbers and column positions
 - **Boolean attribute shorthand** for cleaner templates
+
+[↑ Back to Table of Contents](#table-of-contents)
 
 ## Installation
 
@@ -64,6 +109,8 @@ $ bundle install
 
 The template handler will be automatically registered for `.evc` files.
 
+[↑ Back to Table of Contents](#table-of-contents)
+
 ## Syntax Highlighting
 
 For the best development experience with EVC files, install the [EVC Language Support](https://github.com/senordelaflor/evc-language-support) extension for VS Code. This extension provides:
@@ -74,6 +121,8 @@ For the best development experience with EVC files, install the [EVC Language Su
 - **HTML tag completion** via Emmet
 - **Auto-closing pairs** for brackets and ERB tags
 - **Proper folding** for ERB blocks
+
+[↑ Back to Table of Contents](#table-of-contents)
 
 ## Usage
 
@@ -467,15 +516,21 @@ You can mix regular HTML, ERB, and component tags:
 </div>
 ```
 
+[↑ Back to Table of Contents](#table-of-contents)
+
 ## Error Handling
 
 The template handler provides detailed error messages with line numbers and column positions:
 
 ```
+
 ArgumentError: Unmatched closing tag </Button> at line 15, column 8
 ArgumentError: Unclosed tag <Card> at line 10, column 1
 ArgumentError: No matching opening tag for </Container> at line 20, column 5
+
 ```
+
+[↑ Back to Table of Contents](#table-of-contents)
 
 ## Caching
 
@@ -494,6 +549,8 @@ Or clear specific template patterns:
 ```ruby
 Rails.cache.delete_matched("evc_rails_template:*")
 ```
+
+[↑ Back to Table of Contents](#table-of-contents)
 
 ## Development
 
@@ -526,3 +583,5 @@ gem build evc_rails.gemspec
 ## License
 
 The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+
+[↑ Back to Table of Contents](#table-of-contents)

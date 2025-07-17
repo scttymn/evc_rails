@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2024-12-19
+
+### Added
+
+- **Kebab-case attribute support**: Support for HTML-style kebab-case attributes in addition to snake_case
+  - `<Button data-test-id="value" />` converts to `data_test_id: "value"`
+  - `<Button aria-label="Click me" />` converts to `aria_label: "Click me"`
+  - Works with boolean attributes: `<Button data-disabled aria-hidden />`
+  - Supports Ruby expressions: `<Button data-user-id={@user.id} />`
+  - Fully backward compatible with existing snake_case attributes
+  - Automatically converts kebab-case to snake_case for Ruby compatibility
+
 ## [0.3.1] - 2024-12-19
 
 ### Fixed

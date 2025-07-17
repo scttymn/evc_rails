@@ -40,7 +40,7 @@ No component modifications required - just install and enjoy easier syntax!
 - **JSX-like syntax** for ViewComponent tags
 - **Self-closing components**: `<Button />`
 - **Block components**: `<Container>content</Container>`
-- **Attributes**: String, Ruby expressions, and multiple attributes
+- **Attributes**: String, Ruby expressions, multiple attributes, and kebab-case support
 - **Namespaced components**: `<UI::Button />`, `<Forms::Fields::TextField />`
 - **Advanced slot support**: `<WithHeader>...</WithHeader>` with `renders_one` and `renders_many`, including complex nesting
 - **Deep nesting**: Complex component hierarchies with proper block variable handling
@@ -141,10 +141,37 @@ Becomes:
 #### Multiple Attributes
 
 ```erb
-<Card class="shadow-lg" data-testid="featured-card" user={@user}>
+<Card class="shadow-lg" data-test-id="featured-card" user={@user}>
   Content here
 </Card>
 ```
+
+#### Kebab-case Attributes
+
+EVC supports both snake_case and kebab-case (hyphenated) attributes. Kebab-case attributes are automatically converted to snake_case for Ruby compatibility:
+
+```erb
+<Button data-test-id="my-button" aria-label="Click me" />
+<Container data-test-container="wrapper" class="main">Hello World</Container>
+```
+
+Becomes:
+
+```erb
+<%= render ButtonComponent.new(data_test_id: "my-button", aria_label: "Click me") %>
+<%= render ContainerComponent.new(data_test_container: "wrapper", class: "main") do %>
+  Hello World
+<% end %>
+```
+
+This works with:
+
+- **String attributes**: `data-test-id="value"` → `data_test_id: "value"`
+- **Boolean attributes**: `data-disabled aria-hidden` → `data_disabled: true, aria_hidden: true`
+- **Ruby expressions**: `data-user-id={@user.id}` → `data_user_id: @user.id`
+- **Mixed attributes**: `size="lg" data-test-id="value"` → `size: "lg", data_test_id: "value"`
+
+Kebab-case attributes are fully backward compatible with existing snake_case attributes.
 
 ### Namespaced Components
 

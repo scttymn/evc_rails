@@ -13,7 +13,7 @@ module EvcRails
       CLOSE_TAG_REGEX = %r{</([A-Z][a-zA-Z0-9_]*(?:::[A-Z][a-zA-Z0-9_]*)*)>}
 
       # Regex for attributes
-      ATTRIBUTE_REGEX = /(\w+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|\{([^}]*)\}))?/
+      ATTRIBUTE_REGEX = /([a-zA-Z0-9_-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|\{([^}]*)\}))?/
 
       # Cache for compiled templates
       @template_cache = {}
@@ -274,6 +274,12 @@ module EvcRails
         name
       end
 
+      def normalize_attribute_name(attribute_name)
+        # Convert dasherized attributes to snake_case for Ruby compatibility
+        # e.g., "data-test-id" -> "data_test_id"
+        attribute_name.gsub("-", "_")
+      end
+
       def parse_attributes(attributes_str, attribute_regex = ATTRIBUTE_REGEX)
         as_variable = nil
         # Find and remove the `as` attribute, storing its value.
@@ -290,9 +296,9 @@ module EvcRails
           str = "" if str.nil?
           break if str.empty?
           # Match key
-          break unless str =~ /\A(\w+)/
+          break unless str =~ /\A([a-zA-Z0-9_-]+)/
 
-          key = ::Regexp.last_match(1)
+          key = normalize_attribute_name(::Regexp.last_match(1))
           str = str[::Regexp.last_match(0).length..-1]
           str = "" if str.nil?
           str.lstrip!

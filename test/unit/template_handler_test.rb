@@ -574,6 +574,41 @@ class TemplateHandlerTest < Minitest::Test
     assert_equal "ERB_COMPILED: #{expected}", result
   end
 
+  def test_kebab_case_attributes
+    source = '<Button data-test-id="my-button" aria-label="Click me" />'
+    expected = '<%= render ButtonComponent.new(data_test_id: "my-button", aria_label: "Click me") %>'
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_mixed_snake_case_and_kebab_case_attributes
+    source = '<Button size="lg" data-test-id="my-button" user={@user} />'
+    expected = '<%= render ButtonComponent.new(size: "lg", data_test_id: "my-button", user: @user) %>'
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_kebab_case_attributes_in_block_component
+    source = '<Container data-test-container="wrapper" class="main">Hello World</Container>'
+    expected = '<%= render ContainerComponent.new(data_test_container: "wrapper", class: "main") do %>Hello World<% end %>'
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_kebab_case_boolean_attributes
+    source = "<Button data-disabled aria-hidden />"
+    expected = "<%= render ButtonComponent.new(data_disabled: true, aria_hidden: true) %>"
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
+  def test_kebab_case_attributes_with_ruby_expressions
+    source = '<Button data-user-id={@user.id} aria-label="Welcome" />'
+    expected = '<%= render ButtonComponent.new(data_user_id: @user.id, aria_label: "Welcome") %>'
+    result = @handler.call(@template, source)
+    assert_equal "ERB_COMPILED: #{expected}", result
+  end
+
   def test_fallback_cache_is_used_when_rails_cache_unavailable
     # Simulate Rails.cache being unavailable
     handler = EvcRails::TemplateHandlers::Evc.new
